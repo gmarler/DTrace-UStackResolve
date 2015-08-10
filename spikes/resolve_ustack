@@ -1,0 +1,243 @@
+#!/usr/perl5/5.22.0/bin/perl
+
+use strict;
+use warnings;
+
+use v5.18.1;
+
+use File::stat;
+use Digest::SHA1;
+use Future;
+use Future::Utils        qw( fmap );
+use IO::Async::Loop;
+use IO::Async::Function;
+use Getopt::Long;
+use Digest::SHA1;
+use Data::Dumper;
+use IPC::System::Simple  qw( capture );
+use IO::File;
+use Carp;
+use CHI;
+
+use Readonly;
+
+Readonly::Scalar my $pmap  => "/bin/pmap";
+Readonly::Scalar my $pgrep => "/bin/pgrep";
+Readonly::Scalar my $nm    => "/usr/ccs/bin/nm";
+
+my $execname;
+
+GetOptions("execname=s"  => \$execname) or
+  die("Error in command line arguments");
+
+unless (defined $execname) {
+  die "--execname argument required";
+}
+
+my @execname_pids;
+
+my $cache = CHI->new( driver   => 'FastMmap',
+                      root_dir => '/bb/pm/data/ustack_resolve_cache',
+                      cache_size => '512m',
+                    );
+
+sub get_execname_pids {
+  my ($execname) = shift;
+
+ 
+  my @output = capture( "$pgrep -lfx '^$execname .+'" );
+  chomp(@output);
+  #say Dumper( \@output );
+  my @pids = map { my $line = $_; $line =~ m/^\s?(?<pid>\d+)\s+/; $+{pid}; } @output;
+  #say Dumper( \@pids );
+  return \@pids;
+}
+
+sub get_pid_start_epoch {
+  my ($pid) = shift;
+
+  my ($st);
+
+  unless ($st = stat("/proc/$pid")) {
+    carp "PID file /proc/$pid missing: $!";
+    return;
+  }
+  return $st->ctime;
+}
+
+sub file_sha1_digest {
+  my ($file) = shift;
+
+  my $fh   = IO::File->new($file,"<");
+  unless (defined $fh) {
+    carp "$file does not exist: $!";
+    return;
+  }
+  my $sha1 = Digest::SHA1->new;
+
+  $sha1->addfile($fh);
+  my $digest = $sha1->hexdigest;
+  say "SHA-1 of $file is: $digest";
+  return $digest;
+}
+
+my $sha1_func = IO::Async::Function->new(
+  code        => \&file_sha1_digest,
+);
+
+my $loop = IO::Async::Loop->new;
+
+$loop->add( $sha1_func );
+
+my $pids_aref = get_execname_pids($execname);
+
+my %pids_start_href  = map { $_ => get_pid_start_epoch($_); } @$pids_aref;
+my %pids_a_out_files = map { $_ => "/proc/$_/path/a.out"; } @$pids_aref;
+
+say Dumper( \%pids_start_href );
+say Dumper( \%pids_a_out_files );
+
+@execname_pids = map { { pid => $_,
+                         start_epoch => get_pid_start_epoch($_),
+                       } } @$pids_aref;
+
+say Dumper( \@execname_pids );
+
+foreach my $href (@execname_pids) {
+  if ( $cache->get( $href ) ) {
+    say "cache entry exists";
+    $cache->remove( $href );
+  } else {
+    say "cache entry DOES NOT EXIST";
+    $cache->set( $href, {}, '7 days' );
+  }
+}
+
+exit;
+
+my $sha1_f = fmap {
+  #say Dumper( \@_ );
+  my ($aref) = @_;
+  my ($pid, $file) = @$aref;
+  say "Generating SHA-1 for PID $pid, via file $file";
+  #$sha1_func->call( args => [ $file ],
+  #                  on_done => sub { Future->done(); },
+  #                );
+  Future->done( { sha1 => '1234567890abcdef', pid => $pid, } );
+} foreach => [ map { [ $_, $pids_a_out_files{$_} ] } keys %pids_a_out_files ], concurrent => 2;
+
+#say Dumper( $sha1_f );
+
+my @sha1_hrefs = $sha1_f->get;
+
+# $loop->run;
+
+# TODO: Complain loudly and die if not all of the SHA-1 digests match
+
+#
+# Get the pmap for each PID we're examining.
+#
+# Those that are the same can share the same dynamic base addresses, and static symbol tables, which
+# won't have to be independently computed/built.
+#
+# Just have them share the same cache values (with independent keys, of course)
+#
+
+my $pid_static_symtab = fmap {
+} foreach => [ keys %pids_a_out_files ], concurrent => 2;
+
+
+#
+# To obtain static symbols (functions only at the moment) from the binary in
+# question, we'll need to do the equivalent of this:
+# /usr/ccs/bin/nm -C /bb/bin/m_wsrusr.tsk |
+# nawk -F'|' '$4 ~ /^FUNC/ { print $2, $3, $NF }' |
+# sort -nk 1,1 > /tmp/m_wsrusr.syms
+# This should *definitely* be cached to a file between iterations, especially if the
+# binary we're examining is > 500 MB in size
+
+
+=head2  pid_dynlib_base_addr
+
+This function processes the output of the pmap command on the running process,
+producing the base address of each dynamic library as it is mapped into the
+PIDs address space, from which the location of each function contained in
+such libraries can be determined, via base address + offset calculations.
+
+=cut
+
+sub pid_dynlib_base_addr {
+  my ($pid,$start_epoch) = @_;
+
+  # TODO: Check whether this has already been stored for this PID instance, using
+  #       KEY: { pid => $pid, start_epoch => $start_epoch }
+  #       Return immediately if available
+  
+
+  my $pmap_output = capture( "$pmap $pid" );
+  my $dynsym_offset_href =  { };
+  my $return_href        =  { };
+
+  # Dynamic .so library analysis
+  my $so_regex =
+    qr{
+       ^ (?<base_addr>[0-9a-fA-F]+) \s+         # Hex starting address
+         \S+                        \s+         # size
+         \S+                        \s+         # perms
+         (?<libpath>/[^\n]+?\.so(?:[^\n]+|)) \n # Full path to .so* file
+      }smx;
+
+  # This relies on the fact that the first time a lib is listed in pmap output
+  # is the actual offset we're always looking for.
+  while ($pmap_output =~ m{$so_regex}gsmx) {
+    if (not exists $dynsym_offset_href->{$+{libpath}}) {
+      $dynsym_offset_href->{$+{libpath}} = hex($+{base_addr});
+    }
+  }
+
+  # TODO: Store this data with the following:
+  #       KEY: { pid => $pid, start_epoch => $start_epoch }
+ 
+  return $dynsym_offset_href;
+}
+
+# Given a path to a dynamic/shared library, generate the symbol table, which later
+# needs to be, on a per process basis, altered from the offset form here in the
+# first aref element to the base address + offset form, so it can be used to
+# resolve symbols.
+#
+
+sub dynlib_symbol_table {
+  my ($dynlib_path, $dynlib_sha1) = @_;
+
+  my ($dynlib_symtab_aref);
+
+  # TODO: Check whether data is in cache; return immediately if it is
+
+  say "Building symtab for $dynlib_path\n";
+  my $out       = capture( "$nm -C $dynlib_path" );
+
+  while ($out =~ m{^ [^|]+ \|
+                     \s+? (?<offset>\d+) \|   # Offset from base
+                     \s+? (?<size>\d+)   \|   # Size
+                     FUNC \s+            \|   # It's a Function!
+                     [^|]+               \|
+                     [^|]+               \|
+                     [^|]+               \|
+                     (?<funcname>[^\n]+) \n
+                  }gsmx) {      
+    my $val = [ $+{offset}, $+{size}, $+{funcname} ];
+    push @$dynlib_symtab_aref, $val;
+  }
+
+  # TODO: Add to cache with:
+  #       KEY: { dynlib_path => $dynlib_path, sha1 => $dynlib_sha1 }
+
+  return $dynlib_symtab_aref;
+}
+
+#
+# Function to perform resolution of static symbol table from the actual execname binary itself,
+# apart from the dynamic libraries we're resolving.
+#
+
