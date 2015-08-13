@@ -3,29 +3,45 @@
 use strict;
 use warnings;
 
-use v5.18.1;
+use v5.22.0;
 
+use Log::Log4perl         qw( :easy );
+#use Log::Any::Adapter     qw( Stdout );
+use Log::Any              qw( $log );
 use File::stat;
+use File::Basename;
 use Digest::SHA1;
 use Future;
-use Future::Utils        qw( fmap );
+use Future::Utils         qw( fmap );
+use List::Util            qw( first );
+use List::MoreUtils       qw( uniq );
 use IO::Async::Loop;
 use IO::Async::Function;
+use IO::Async::FileStream;
+use IO::Async::Process;
 use Getopt::Long;
 use Digest::SHA1;
 use Data::Dumper;
-use IPC::System::Simple  qw( capture );
+use IPC::System::Simple   qw( capture );
+# Needs Exporter::ConditionalSubs
+#use Assert::Conditional  qw( :scalar );
 use IO::File;
+use File::Temp            qw( );
+use Math::BigInt          qw( );
 use Carp;
 use CHI;
 
 use Readonly;
 
-Readonly::Scalar my $pmap  => "/bin/pmap";
-Readonly::Scalar my $pgrep => "/bin/pgrep";
-Readonly::Scalar my $nm    => "/usr/ccs/bin/nm";
+Readonly::Scalar my $pmap   => "/bin/pmap";
+Readonly::Scalar my $pgrep  => "/bin/pgrep";
+Readonly::Scalar my $nm     => "/usr/ccs/bin/nm";
+Readonly::Scalar my $DTRACE => "/sbin/dtrace";
 
-my $execname;
+Log::Log4perl->easy_init($DEBUG);
+#Log::Any::Adapter->set('Log4perl');
+
+my ($execname,$execpath);
 
 GetOptions("execname=s"  => \$execname) or
   die("Error in command line arguments");
@@ -36,19 +52,56 @@ unless (defined $execname) {
 
 my @execname_pids;
 
-my $cache = CHI->new( driver   => 'FastMmap',
-                      root_dir => '/bb/pm/data/ustack_resolve_cache',
-                      cache_size => '512m',
-                    );
+my (%direct_symbol_datastore);
+
+# CHI->stats->enable();
+
+my $direct_symbol_cache =
+  CHI->new( driver       => 'RawMemory',
+            cache_size   => '512m',
+            namespace    => 'direct_symbol',
+            datastore    => \%direct_symbol_datastore,
+            on_get_error => 'warn',
+            on_set_error => 'warn',
+  );
+
+my $symbol_table_cache =
+  CHI->new( driver       => 'RawMemory',
+            cache_size   => '512m',
+            namespace    => 'symbol_tables',
+            global       => 0,
+            on_get_error => 'warn',
+            on_set_error => 'warn',
+           );
+
+my $ustack_resolve_pids_cache =
+  CHI->new( driver       => 'RawMemory',
+            cache_size   => '512m',
+            namespace    => 'ustack_resolve_pids',
+            global       => 0,
+            on_get_error => 'warn',
+            on_set_error => 'warn',
+           );
+
+my $exec_ustack_cache =
+  CHI->new(
+            driver       => 'File',
+            root_dir     => '/bb/pm/data/ustack_execs',
+            cache_size   => '4096m',
+            on_get_error => 'warn',
+            on_set_error => 'warn',
+  );
+
 
 sub get_execname_pids {
   my ($execname) = shift;
-
  
-  my @output = capture( "$pgrep -lfx '^$execname .+'" );
+  my @output = capture( "$pgrep -lxf '^$execname.+'" );
   chomp(@output);
+  say "PIDS:";
+  say join("\n",@output);
   #say Dumper( \@output );
-  my @pids = map { my $line = $_; $line =~ m/^\s?(?<pid>\d+)\s+/; $+{pid}; } @output;
+  my @pids = map { my $line = $_; $line =~ m/^(?:\s+)?(?<pid>\d+)\s+/; $+{pid}; } @output;
   #say Dumper( \@pids );
   return \@pids;
 }
@@ -85,11 +138,42 @@ my $sha1_func = IO::Async::Function->new(
   code        => \&file_sha1_digest,
 );
 
+my $pmap_func = IO::Async::Function->new(
+  code        => \&pid_dynamic_library_paths
+);
+
+my $gen_symtab_func = IO::Async::Function->new(
+  code        => \&gen_symbol_table
+);
+
 my $loop = IO::Async::Loop->new;
 
 $loop->add( $sha1_func );
+$loop->add( $pmap_func );
+$loop->add( $gen_symtab_func );
 
 my $pids_aref = get_execname_pids($execname);
+
+my (%execpaths);
+foreach my $pid (@$pids_aref) {
+  my $a_out = "/proc/$pid/path/a.out";
+  my ($abs_path) = readlink($a_out);
+  if (not defined($abs_path)) {
+    carp "could not open $a_out: $!";
+    next;
+  }
+  $execpaths{$abs_path}++;
+}
+
+if (scalar( keys %execpaths ) == 1) {
+  ($execpath) = keys %execpaths;
+  say "EXECPATH: $execpath";
+} else {
+  say "TOO MANY EXECPATHS, --execname not unique/specific enough:\n" .
+  join("\n", keys %execpaths);
+  exit(1);
+}
+
 
 my %pids_start_href  = map { $_ => get_pid_start_epoch($_); } @$pids_aref;
 my %pids_a_out_files = map { $_ => "/proc/$_/path/a.out"; } @$pids_aref;
@@ -104,48 +188,111 @@ say Dumper( \%pids_a_out_files );
 say Dumper( \@execname_pids );
 
 foreach my $href (@execname_pids) {
-  if ( $cache->get( $href ) ) {
+  if ( $ustack_resolve_pids_cache->get( $href ) ) {
     say "cache entry exists";
-    $cache->remove( $href );
+    $ustack_resolve_pids_cache->remove( $href );
   } else {
     say "cache entry DOES NOT EXIST";
-    $cache->set( $href, {}, '7 days' );
+    $ustack_resolve_pids_cache->set( $href, {}, '7 days' );
   }
 }
 
-exit;
-
-my $sha1_f = fmap {
-  #say Dumper( \@_ );
-  my ($aref) = @_;
-  my ($pid, $file) = @$aref;
-  say "Generating SHA-1 for PID $pid, via file $file";
-  #$sha1_func->call( args => [ $file ],
-  #                  on_done => sub { Future->done(); },
-  #                );
-  Future->done( { sha1 => '1234567890abcdef', pid => $pid, } );
-} foreach => [ map { [ $_, $pids_a_out_files{$_} ] } keys %pids_a_out_files ], concurrent => 2;
-
-#say Dumper( $sha1_f );
-
-my @sha1_hrefs = $sha1_f->get;
-
-# $loop->run;
+#  my $sha1_f = fmap {
+#    #say Dumper( \@_ );
+#    my ($aref) = @_;
+#    my ($pid, $file) = @$aref;
+#    say "Generating SHA-1 for PID $pid, via file $file";
+#    Future->done( {
+#        sha1 => $sha1_func->call( args => [ $file ] )->get,
+#        pid  => $pid
+#      }
+#    );
+#    #Future->done( { sha1 => '1234567890abcdef', pid => $pid, } );
+#  } foreach => [ map { [ $_, $pids_a_out_files{$_} ] } keys %pids_a_out_files ], concurrent => 2;
+#  
+#  #say Dumper( $sha1_f );
+#  
+#  my @sha1_hrefs = $sha1_f->get;
+#  
+#  say Dumper( \@sha1_hrefs );
 
 # TODO: Complain loudly and die if not all of the SHA-1 digests match
 
 #
-# Get the pmap for each PID we're examining.
+# Get the absolute library path list from pmap for each PID we're examining.
 #
-# Those that are the same can share the same dynamic base addresses, and static symbol tables, which
-# won't have to be independently computed/built.
 #
-# Just have them share the same cache values (with independent keys, of course)
+my $file_paths_f = fmap {
+  my ($aref) = @_;
+  my ($pid, $start_epoch) = @$aref;
+  say "Obtaining list of dynamic libs for PID $pid";
+  Future->done( $pmap_func->call( args => [ $pid, $start_epoch ] )->get );
+} foreach => [ map { [ $_, $pids_start_href{$_} ] } keys %pids_start_href ],
+  concurrent => 8;
+
+my @file_paths = $file_paths_f->get;
+my @absolute_file_paths = 
+  uniq
+  map { @$_ } @file_paths;
+
+#say Dumper( \@file_paths );
+say Dumper( \@absolute_file_paths );
+
+#
+# Generate the symbol table for each executable, and all dynamic libraries, when
+# necessary.  We no longer need to care if the base addresses are the same among
+# the pids.  We just make sure the libraries being used are:
+#
+# A) Identical (same absolute path and SHA-1 checksum)
+#
+# If the above is true, then they can all share the same cache values for symbol
+# tables, and ultimately, symbol table lookup cache
 #
 
-my $pid_static_symtab = fmap {
-} foreach => [ keys %pids_a_out_files ], concurrent => 2;
+my $symtabs_f = fmap {
+  my ($absolute_path) = shift;
+  say "Creating symbol table for $absolute_path";
+  Future->done( 
+      $absolute_path => $gen_symtab_func->call( args => [ $absolute_path ] )->get
+  );
+} foreach => [ 
+               # $execpath,  # Don't forget to add the executable path itself
+               @absolute_file_paths,
+             ], concurrent => 2;
 
+my %symtabs = $symtabs_f->get;
+
+my %symtab_basename_map;
+say "SYMBOL TABLE KEYS:";
+foreach my $symtab_path (keys %symtabs) {
+  $symtab_basename_map{basename($symtab_path)} = $symtabs{$symtab_path};
+  # if (basename($symtab_path) eq "libperl.so.5.22.0") {
+  #   say Dumper($symtabs{$symtab_path});
+  # }
+  #unless (defined($symbol_table_cache->set(basename($symtab_path), $symtabs{$symtab_path}, '1 day'))) {
+  #  say "FAILED to store KEY basename($symtab_path) in CACHE!"
+  #}
+}
+
+# TEMPORARY WORKAROUND: Load directly the executable ustack symtab
+$symtab_basename_map{"tsbig.tsk"} = $exec_ustack_cache->get("tsbig.tsk");
+# Eliminate 65536 offset from _START_ for each symbol in the executable
+foreach my $elem (@{$symtab_basename_map{"tsbig.tsk"}}) {
+  $elem->[0] -= 65536;
+}
+
+# TODO: Why am I having to sort these again???
+my (@sorted) = sort { $a->[0] <=> $b->[0] } @{$symtab_basename_map{"tsbig.tsk"}};
+$symtab_basename_map{'tsbig.tsk'} = \@sorted;
+
+say join("\n", keys %symtab_basename_map);
+
+say "SYMBOL TABLE KEYS IN CACHE:";
+say join("\n", $symbol_table_cache->get_keys);
+
+#my $first_key = (keys %symtabs)[0];
+
+#say Dumper( { $first_key => $symtabs{$first_key} } );
 
 #
 # To obtain static symbols (functions only at the moment) from the binary in
@@ -157,18 +304,26 @@ my $pid_static_symtab = fmap {
 # binary we're examining is > 500 MB in size
 
 
-=head2  pid_dynlib_base_addr
+=head2  pid_dynamic_library_paths
 
-This function processes the output of the pmap command on the running process,
-producing the base address of each dynamic library as it is mapped into the
-PIDs address space, from which the location of each function contained in
-such libraries can be determined, via base address + offset calculations.
+This function processes the output of the pmap command on the specified pid
+producing the absolute path of each dynamic library the pid has loaded.
+
+This is used as the list of libraries from which to extract symbol tables.
+
+This could also be done, possibly more efficiently, via pldd on the pid.
+
+ldd on a non-running binary is sadly not sufficient for this, as won't go
+through the whole library resolution process, and thus some libraries will be
+omitted, as they're not yet known to be needed; so that's out.
 
 =cut
 
-sub pid_dynlib_base_addr {
+sub pid_dynamic_library_paths {
   my ($pid,$start_epoch) = @_;
 
+  # NOTE: It's likely we don't need to bother caching this, as it's really
+  #       quick.
   # TODO: Check whether this has already been stored for this PID instance, using
   #       KEY: { pid => $pid, start_epoch => $start_epoch }
   #       Return immediately if available
@@ -189,51 +344,91 @@ sub pid_dynlib_base_addr {
 
   # This relies on the fact that the first time a lib is listed in pmap output
   # is the actual offset we're always looking for.
+  # NOTE: We don't need the base_addr anymore, so we simply ignore it now
   while ($pmap_output =~ m{$so_regex}gsmx) {
     if (not exists $dynsym_offset_href->{$+{libpath}}) {
-      $dynsym_offset_href->{$+{libpath}} = hex($+{base_addr});
+      $dynsym_offset_href->{$+{libpath}} = 1;
     }
   }
 
   # TODO: Store this data with the following:
   #       KEY: { pid => $pid, start_epoch => $start_epoch }
- 
-  return $dynsym_offset_href;
+
+  # Return the list of absolute library paths
+  return [ keys %$dynsym_offset_href ];
 }
 
-# Given a path to a dynamic/shared library, generate the symbol table, which later
-# needs to be, on a per process basis, altered from the offset form here in the
-# first aref element to the base address + offset form, so it can be used to
-# resolve symbols.
+# Given a path to a dynamic/shared library or an executable,
+# generate the symbol table.
+# The #pragma for noresolve ensures each generated symbol will be of the
+# form <entity>:<offset from base of entity>
+#
+# This means that we can use the symbol table with base address assumed to be
+# implicitly 0 to resolve symbols without further work.
 #
 
-sub dynlib_symbol_table {
-  my ($dynlib_path, $dynlib_sha1) = @_;
+sub gen_symbol_table {
+  my ($exec_or_lib_path, $exec_or_lib_sha1) = @_;
 
-  my ($dynlib_symtab_aref);
+  # $start_offset is the offset of the _START_ symbol in a library or exec
+  my ($symtab_aref,$symcount,$_start_offset);
 
   # TODO: Check whether data is in cache; return immediately if it is
 
-  say "Building symtab for $dynlib_path\n";
-  my $out       = capture( "$nm -C $dynlib_path" );
+  say "Building symtab for $exec_or_lib_path";
+  # TODO: Convert to IO::Async::Process
+  my $out       = capture( "$nm -C $exec_or_lib_path" );
 
+  say "CAPTURED " . length($out) . " BYTES OF OUTPUT FROM nm OF $exec_or_lib_path";
+
+  say "Parsing nm output for: $exec_or_lib_path";
   while ($out =~ m{^ [^|]+ \|
-                     \s+? (?<offset>\d+) \|   # Offset from base
-                     \s+? (?<size>\d+)   \|   # Size
-                     FUNC \s+            \|   # It's a Function!
-                     [^|]+               \|
-                     [^|]+               \|
-                     [^|]+               \|
-                     (?<funcname>[^\n]+) \n
-                  }gsmx) {      
+                     \s+? (?<offset>\d+)    \|   # Offset from base
+                     \s+? (?<size>\d+)      \|   # Size
+                     (?<type>FUNC|OBJT) \s+ \|   # It's a Function! (or the _START_ OBJT)
+                     [^|]+                  \|
+                     [^|]+                  \|
+                     [^|]+                  \|
+                     (?<funcname>[^\n]+)    \n
+                  }gsmx) {
     my $val = [ $+{offset}, $+{size}, $+{funcname} ];
-    push @$dynlib_symtab_aref, $val;
+    if (not defined($_start_offset)) {
+      if ($val->[2] eq "_START_") {
+        say "FOUND _START_ OFFSET OF: $val->[0]";
+        $_start_offset = $val->[0];
+        next;
+      }
+    }
+    # skip all types that aren't functions, or weren't already handled as
+    # the special _START_ OBJT symbol above
+    next if ($+{type} eq "OBJT");
+    push @$symtab_aref, $val;
+    if (($symcount++ % 1000) == 0) {
+      say "$exec_or_lib_path: PARSED $symcount SYMBOLS";
+    }
+  }
+  # ASSERT that $_start_offset is defined
+  #assert_defined_variable($_start_offset);
+  unless (defined($_start_offset)) {
+    die "UNABLE TO PROCEED";
   }
 
-  # TODO: Add to cache with:
-  #       KEY: { dynlib_path => $dynlib_path, sha1 => $dynlib_sha1 }
+  if ($_start_offset == 0) {
+    say "NO NEED TO ADJUST OFFSETS FOR SYMBOLS IN: $exec_or_lib_path";
+  } else {
+    foreach my $symval (@$symtab_aref) {
+      $symval->[0] -= $_start_offset;
+    }
+  }
+  # Sort the symbol table by starting address before returning it
+  say "SORTING SYMBOL TABLE: $exec_or_lib_path";
+  my (@sorted_symtab) = sort {$a->[0] <=> $b->[0] } @$symtab_aref;
 
-  return $dynlib_symtab_aref;
+  # TODO: Add to cache with:
+  #       KEY: { exec_or_lib_path => $exec_or_lib_path, sha1 => $exec_or_lib_sha1 }
+
+  say "RETURNING SORTED SYMBOL TABLE FOR: $exec_or_lib_path";
+  return \@sorted_symtab;
 }
 
 #
@@ -241,3 +436,259 @@ sub dynlib_symbol_table {
 # apart from the dynamic libraries we're resolving.
 #
 
+
+
+#
+# Build a DTrace script, return the text of it
+#
+sub build_dtrace_script {
+  my ($execname) = shift;
+
+  my $script = <<'END';
+#pragma D option noresolve
+#pragma D option quiet
+#pragma D option ustackframes=100
+
+profile-97Hz
+/ execname == "__EXECNAME__" /
+{
+  @s[pid,tid,stack(),ustack()] = count();
+}
+
+tick-1sec
+{
+  printf("\n%Y\n",walltimestamp);
+
+  /* We prefix with PID:<pid> so that we can determine which PID we're working
+   * on, on the off chance that individual PIDs have set LD_LIBRARY_PATH or
+   * similar, such that some shared libraries differ, even though the
+   * execpath (fully qualified path to an executable), execname (basename)
+   * of the same executable), and SHA-1 of the executable are all
+   * identical between PIDs.
+   */
+  printa("PID:%5d %-3d %k %k %@12u\n",@s);
+
+  trunc(@s);
+}
+
+tick-19hour
+{
+  exit(0);
+}
+END
+
+  $script =~ s/__EXECNAME__/$execname/smx;
+  return $script;
+}
+
+#
+# Given a DTrace script, return the filehandle for a temporary filename that
+# contains it
+#
+sub build_dtrace_script_fh {
+  my ($script) = @_;
+
+  my ($tfh) = File::Temp->new('DTrace-Script-XXXX', DIR => '/tmp');
+
+  $tfh->print($script);
+  $tfh->flush;
+
+  return $tfh;
+}
+
+my $dscript_fh_holder;
+
+sub start_dtrace {
+  my ($execname) = shift;
+
+  my ($script) = build_dtrace_script($execname);
+  my ($dscript_fh) = build_dtrace_script_fh( $script );
+  my ($dscript_filename) = $dscript_fh->filename;
+  $dscript_fh_holder = $dscript_fh;
+
+  my $cmd = "$DTRACE -s $dscript_filename";
+
+  say "Going to execute: $cmd";
+
+  my $dscript_output_fh = IO::File->new("/bb/pm/data/dscript.out", ">>")
+    or die "Unable to open /bb/pm/data/dscript.out for writing: $!";;
+  my $dscript_stderr_fh = IO::File->new("/bb/pm/data/dscript.err", ">>")
+    or die "Unable to open /bb/pm/data/dscript.err for writing: $!";;
+
+  my $dtrace_process =
+    IO::Async::Process->new(
+      command => $cmd,
+      stdout  => {
+        on_read => sub {
+          my ( $stream, $buffref ) = @_;
+           while( $$buffref =~ s/^(.*)\n// ) {
+             $dscript_output_fh->print( $1 . "\n" );
+           }
+ 
+           return 0;
+        },
+      },
+      stderr  => {
+        on_read => sub {
+          my ( $stream, $buffref ) = @_;
+           while( $$buffref =~ s/^(.*)\n// ) {
+             $dscript_stderr_fh->print( $1 . "\n" );
+           }
+ 
+           return 0;
+        },
+      },
+      on_finish => sub {
+        #say "ENTERING on_finish for DTrace process: ";
+        #say Dumper( \@_ );
+        my ($proc_obj,$exitcode) = @_;
+        say "DTrace SCRIPT TERMINATED WITH EXIT CODE: $exitcode!";
+        $dscript_output_fh->close;
+        $loop->stop;
+        exit(1);
+      },
+      # on_exception => sub {
+      #   $dscript_output_fh->close;
+      #   say "DTrace Script ABORTED!";
+      #   $loop->stop;
+      #   exit(1);
+      # },
+    );
+
+  $loop->add( $dtrace_process );
+}
+
+start_dtrace(basename($execname));
+
+sub start_stack_resolve {
+  my ($logfile) = shift;
+
+  my $log_fh      = IO::File->new($logfile, "<");
+  my $resolved_fh = IO::File->new("/bb/pm/data/dscript.out.resolved", ">");
+
+  my $filestream = IO::Async::FileStream->new(
+    read_handle => $log_fh,
+    autoflush   => 1,
+    on_initial => sub {
+      my ( $self ) = @_;
+      #$self->seek_to_last( "\n" );
+      # Start at beginning of file
+      $self->seek( 0 );
+    },
+ 
+    on_read => sub {
+      my ( $self, $buffref ) = @_;
+      # as we read the file to resolve symbols in, we often need to know
+      # what the current PID is for the data which follows to do an accurate
+      # symbol table lookup
+      my ($current_pid);
+ 
+      while( $$buffref =~ s/^(.*)\n// ) {
+        my $line = $1;
+        #say "Received a line $line";
+
+        if ($line =~ m/^PID:(?<pid>\d+)/) {
+          $current_pid = $+{pid};
+          # TODO: look this PID's entries up in at least the following
+          #       namespaces, generating them asynchronously if necessary:
+          # - ustack_resolve_pids
+          # - symbol_table
+          next;
+        }
+        $line = resolve_symbols( $line, $current_pid );
+        $resolved_fh->print( "$line\n" );
+      }
+ 
+      return 0;
+    },
+  );
+
+  $loop->add( $filestream );
+}
+
+start_stack_resolve("/bb/pm/data/dscript.out");
+
+$loop->run;
+
+sub resolve_symbols {
+  my ($line,$pid) = shift;
+
+  my ($symtab);
+  my $unresolved_re =
+    qr/^(?<keyfile>[^:]+):0x(?<offset>[\da-fA-F]+)/;
+
+  if ($line =~ m/^(?<keyfile>[^:]+):0x(?<offset>[\da-fA-F]+)$/) {
+    # Return direct lookup if available
+    if (my ($result) = $direct_symbol_cache->get($line)) {
+      return $result if defined($result);
+    }
+    my ($keyfile, $offset) = ($+{keyfile}, $+{offset});
+    #say "MATCHED: $keyfile, OFFSET: $offset";
+    # TODO: Use the PID to lookup the correct symbol table entries
+    #       in the symbol_table cache namespace
+    #if (defined( $symtab = $symbol_table_cache->get($keyfile) )) {
+    if (defined( $symtab = $symtab_basename_map{$keyfile} )) {
+      my $dec_offset = Math::BigInt->from_hex($offset);
+      my $index = _binarySearch($dec_offset,$symtab);
+      # NOTE: Use defined($index) because the $index can validly be '0'
+      if (defined($index)) {
+        my ($symtab_entry) = $symtab->[$index];
+        # If we actually found the proper symbol table entry, make a pretty output
+        # in the stack for it
+        if ($symtab_entry) {
+          my $funcname = $symtab_entry->[2];
+          # my $funcsize = $symtab_entry->[1];
+          # say "FUNCNAME: $funcname";
+          my $resolved =
+            sprintf("%s+0x%x",
+                    $funcname,
+                    $dec_offset - Math::BigInt->new($symtab_entry->[0]));
+          # If we got here, we have something to store in the direct symbol
+          # lookup cache
+          $direct_symbol_cache->set($line,$resolved,'7 days');
+          $line =~ s/^(?<keyfile>[^:]+):0x(?<offset>[\da-fA-F]+)$/${resolved}/;
+        } else {
+          die "WHAT THE HECK HAPPENED???";
+        }
+      } else {
+        $line .= " [SYMBOL TABLE LOOKUP FAILED]";
+      }
+      #say "symtab lookup successful";
+    } else {
+      $line .= " [NO SYMBOL TABLE FOR $keyfile]";
+    }
+    return $line;
+  } else {
+    return $line;
+  }
+}
+
+sub _binarySearch
+{
+  my ($address_to_resolve,$array) = @_;
+  my ($midval);
+  my ($mid) = Math::BigInt->new();
+
+  my ($low, $high) = (Math::BigInt->new(0),
+                      Math::BigInt->new(scalar(@$array) - 1));
+
+  while ($low <= $high) {
+    $mid    = ($low + $high) >> 1;
+    $midval = $array->[$mid];
+
+    if (($midval->[0] + $midval->[1]) < $address_to_resolve) {
+      $low = $mid + 1;
+    } elsif ($midval->[0] > $address_to_resolve) {
+      $high = $mid - 1;
+    } elsif (($address_to_resolve >= $midval->[0]) &&
+             ($address_to_resolve <= ($midval->[0] + $midval->[1])))  {
+      return $mid;
+    }
+  }
+  return; # undef
+}
+
+
+END {
+  # CHI->stats->flush();
+}
