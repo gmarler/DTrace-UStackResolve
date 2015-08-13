@@ -521,8 +521,9 @@ sub start_dtrace {
       stdout  => {
         on_read => sub {
           my ( $stream, $buffref ) = @_;
-           while( $$buffref =~ s/^(.*)\n// ) {
-             $dscript_output_fh->print( $1 . "\n" );
+           #while( $$buffref =~ s/^(.*)\n// ) {
+           while( my $data = substr($$buffref,0,8192,'') ) {
+             $dscript_output_fh->print( $data );
            }
  
            return 0;
