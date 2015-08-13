@@ -510,9 +510,9 @@ sub start_dtrace {
 
   say "Going to execute: $cmd";
 
-  my $dscript_output_fh = IO::File->new("/bb/pm/data/dscript.out", ">>")
+  my $dscript_output_fh = IO::File->new("/bb/pm/data/dscript.out", ">")
     or die "Unable to open /bb/pm/data/dscript.out for writing: $!";;
-  my $dscript_stderr_fh = IO::File->new("/bb/pm/data/dscript.err", ">>")
+  my $dscript_stderr_fh = IO::File->new("/bb/pm/data/dscript.err", ">")
     or die "Unable to open /bb/pm/data/dscript.err for writing: $!";;
 
   my $dtrace_process =
@@ -564,7 +564,7 @@ sub start_stack_resolve {
   my ($logfile) = shift;
 
   my $log_fh      = IO::File->new($logfile, "<");
-  my $resolved_fh = IO::File->new("/bb/pm/data/dscript.out.resolved", ">");
+  my $resolved_fh = IO::File->new("/bb/pm/data/dscript.out.resolved", ">>");
 
   my $filestream = IO::Async::FileStream->new(
     read_handle => $log_fh,
