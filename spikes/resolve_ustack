@@ -60,7 +60,8 @@ my $direct_symbol_cache =
   CHI->new( driver       => 'RawMemory',
             cache_size   => '512m',
             namespace    => 'direct_symbol',
-            datastore    => \%direct_symbol_datastore,
+            #datastore    => \%direct_symbol_datastore,
+            global       => 1,
             on_get_error => 'warn',
             on_set_error => 'warn',
   );
@@ -69,7 +70,7 @@ my $symbol_table_cache =
   CHI->new( driver       => 'RawMemory',
             cache_size   => '512m',
             namespace    => 'symbol_tables',
-            global       => 0,
+            global       => 1,
             on_get_error => 'warn',
             on_set_error => 'warn',
            );
@@ -91,6 +92,15 @@ my $exec_ustack_cache =
             on_get_error => 'warn',
             on_set_error => 'warn',
   );
+
+#my $symtab_basename_map_cache =
+#  CHI->new(
+#            driver       => 'File',
+#            root_dir     => '/bb/pm/data/symtab_basename_map',
+#            cache_size   => '4096m',
+#            on_get_error => 'warn',
+#            on_set_error => 'warn',
+#  );
 
 
 sub get_execname_pids {
@@ -146,11 +156,16 @@ my $gen_symtab_func = IO::Async::Function->new(
   code        => \&gen_symbol_table
 );
 
+my $resolve_symbols_func = IO::Async::Function->new(
+  code        => \&resolve_symbols,
+);
+
 my $loop = IO::Async::Loop->new;
 
 $loop->add( $sha1_func );
 $loop->add( $pmap_func );
 $loop->add( $gen_symtab_func );
+$loop->add( $resolve_symbols_func );
 
 my $pids_aref = get_execname_pids($execname);
 
@@ -265,7 +280,7 @@ my %symtabs = $symtabs_f->get;
 my %symtab_basename_map;
 say "SYMBOL TABLE KEYS:";
 foreach my $symtab_path (keys %symtabs) {
-  $symtab_basename_map{basename($symtab_path)} = $symtabs{$symtab_path};
+  $symtab_basename_map{basename($symtab_path)}  = $symtabs{$symtab_path};
   # if (basename($symtab_path) eq "libperl.so.5.22.0") {
   #   say Dumper($symtabs{$symtab_path});
   # }
@@ -275,6 +290,7 @@ foreach my $symtab_path (keys %symtabs) {
 }
 
 # TEMPORARY WORKAROUND: Load directly the executable ustack symtab
+#$symtab_basename_map_cache->set("tsbig.tsk", $exec_ustack_cache->get("tsbig.tsk"), '1 day');
 $symtab_basename_map{"tsbig.tsk"} = $exec_ustack_cache->get("tsbig.tsk");
 # Eliminate 65536 offset from _START_ for each symbol in the executable
 foreach my $elem (@{$symtab_basename_map{"tsbig.tsk"}}) {
@@ -282,8 +298,8 @@ foreach my $elem (@{$symtab_basename_map{"tsbig.tsk"}}) {
 }
 
 # TODO: Why am I having to sort these again???
-my (@sorted) = sort { $a->[0] <=> $b->[0] } @{$symtab_basename_map{"tsbig.tsk"}};
-$symtab_basename_map{'tsbig.tsk'} = \@sorted;
+# my (@sorted) = sort { $a->[0] <=> $b->[0] } @{$symtab_basename_map{"tsbig.tsk"}};
+# $symtab_basename_map{'tsbig.tsk'} = \@sorted;
 
 say join("\n", keys %symtab_basename_map);
 
@@ -477,7 +493,60 @@ tick-19hour
 }
 END
 
+  my $whatfor_script = <<'END';
+#pragma D option noresolve
+#pragma D option quiet
+#pragma D option ustackframes=100
+
+sched:::off-cpu
+/ execname == __EXECNAME__ &&
+  curlwpsinfo &&
+  curlwpsinfo->pr_state == SSLEEP /
+{
+  /*
+   * We're sleeping.  Track our sobj type.
+   */
+  self->sobj = curlwpsinfo->pr_stype;
+  self->bedtime = timestamp;
+}
+
+sched:::off-cpu
+/ execname == __EXECNAME__ &&
+  curlwpsinfo &&
+  curlwpsinfo->pr_state == SRUN /
+{
+  self->bedtime = timestamp;
+}
+
+sched:::on-cpu
+/self->bedtime && !self->sobj/
+{
+  @["preempted",pid,tid] = quantize(timestamp - self->bedtime);
+  @sdata[pid,tid,stack(),ustack()] = count();
+  self->bedtime = 0; 
+}
+
+sched:::on-cpu
+/self->sobj/
+{
+  @[self->sobj == SOBJ_MUTEX ? "kernel-level lock" :
+    self->sobj == SOBJ_RWLOCK ? "rwlock" :
+    self->sobj == SOBJ_CV ? "condition variable" :
+    self->sobj == SOBJ_SEMA ? "semaphore" :
+    self->sobj == SOBJ_USER ? "user-level lock" :
+    self->sobj == SOBJ_USER_PI ? "user-level prio-inheriting lock" :
+    self->sobj == SOBJ_SHUTTLE ? "shuttle" : "unknown",
+    pid,tid] = quantize(timestamp - self->bedtime);
+  @sdata[pid,tid,stack(),ustack()] = count();
+
+  self->sobj = 0; 
+  self->bedtime = 0; 
+}
+END
+
   $script =~ s/__EXECNAME__/$execname/smx;
+  $whatfor_script =~ s/__EXECNAME__/$execname/smx;
+
   return $script;
 }
 
@@ -521,22 +590,23 @@ sub start_dtrace {
       stdout  => {
         on_read => sub {
           my ( $stream, $buffref ) = @_;
-           #while( $$buffref =~ s/^(.*)\n// ) {
-           while( my $data = substr($$buffref,0,8192,'') ) {
-             $dscript_output_fh->print( $data );
-           }
+          #while ( $$buffref =~ s/^(.*)\n// ) {
+          while ( length( $$buffref ) ) {
+            my $data = substr($$buffref,0, 1024*1024 ,'');
+            $dscript_output_fh->print( $data );
+          }
  
-           return 0;
+          return 0;
         },
       },
       stderr  => {
         on_read => sub {
           my ( $stream, $buffref ) = @_;
-           while( $$buffref =~ s/^(.*)\n// ) {
-             $dscript_stderr_fh->print( $1 . "\n" );
-           }
+          while ( $$buffref =~ s/^(.*)\n// ) {
+            $dscript_stderr_fh->print( $1 . "\n" );
+          }
  
-           return 0;
+          return 0;
         },
       },
       on_finish => sub {
@@ -569,13 +639,13 @@ sub start_stack_resolve {
 
   my $filestream = IO::Async::FileStream->new(
     read_handle => $log_fh,
-    autoflush   => 1,
-    on_initial => sub {
-      my ( $self ) = @_;
-      #$self->seek_to_last( "\n" );
-      # Start at beginning of file
-      $self->seek( 0 );
-    },
+    #autoflush   => 1,
+    #on_initial => sub {
+    #  my ( $self ) = @_;
+    #  #$self->seek_to_last( "\n" );
+    #  # Start at beginning of file
+    #  $self->seek( 0 );
+    #},
  
     on_read => sub {
       my ( $self, $buffref ) = @_;
@@ -598,6 +668,37 @@ sub start_stack_resolve {
         }
         $line = resolve_symbols( $line, $current_pid );
         $resolved_fh->print( "$line\n" );
+        # $resolve_symbols_func->call(
+        #   args => [ $line, $current_pid, $direct_symbol_cache, $symtab_basename_map_cache ],
+        #   #init => sub {
+        #   #  our $symtab_basename_map_cache =
+        #   #    CHI->new(
+        #   #      driver       => 'File',
+        #   #      root_dir     => '/bb/pm/data/symtab_basename_map',
+        #   #      cache_size   => '4096m',
+        #   #      on_get_error => 'warn',
+        #   #      on_set_error => 'warn',
+        #   #      l1_cache => { driver => 'RawMemory', global => 1, max_size => 64*1024*1024 }
+        #   #    );
+        #   #  our $direct_symbol_cache =
+        #   #    CHI->new( driver       => 'RawMemory',
+        #   #              cache_size   => '512m',
+        #   #              namespace    => 'direct_symbol',
+        #   #              #datastore    => \%direct_symbol_datastore,
+        #   #              global       => 1,
+        #   #              on_get_error => 'warn',
+        #   #              on_set_error => 'warn',
+        #   #    );
+
+        #   #},
+        # )->on_done( sub {
+        #               my $resolved_symbol = shift;
+        #               $resolved_fh->print( "$resolved_symbol\n" );
+        #             }
+        # )->on_fail( sub {
+        #               carp "Unable to resolve $line";
+        #             }
+        # )->get;
       }
  
       return 0;
@@ -612,7 +713,8 @@ start_stack_resolve("/bb/pm/data/dscript.out");
 $loop->run;
 
 sub resolve_symbols {
-  my ($line,$pid) = shift;
+  my ($line,$pid) = @_;
+  #my ($line,$direct_symbol_cache,$symtab_basename_map_cache,$pid) = @_;
 
   my ($symtab);
   my $unresolved_re =
