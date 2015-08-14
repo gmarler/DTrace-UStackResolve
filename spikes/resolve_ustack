@@ -246,6 +246,9 @@ my $file_paths_f = fmap {
   concurrent => 8;
 
 my @file_paths = $file_paths_f->get;
+
+# say Dumper( [ @file_paths ] );
+
 my @absolute_file_paths = 
   uniq
   map { @$_ } @file_paths;
@@ -271,7 +274,7 @@ my $symtabs_f = fmap {
       $absolute_path => $gen_symtab_func->call( args => [ $absolute_path ] )->get
   );
 } foreach => [ 
-               # $execpath,  # Don't forget to add the executable path itself
+               $execpath,  # Don't forget to add the executable path itself
                @absolute_file_paths,
              ], concurrent => 2;
 
@@ -291,11 +294,11 @@ foreach my $symtab_path (keys %symtabs) {
 
 # TEMPORARY WORKAROUND: Load directly the executable ustack symtab
 #$symtab_basename_map_cache->set("tsbig.tsk", $exec_ustack_cache->get("tsbig.tsk"), '1 day');
-$symtab_basename_map{"tsbig.tsk"} = $exec_ustack_cache->get("tsbig.tsk");
+#$symtab_basename_map{"tsbig.tsk"} = $exec_ustack_cache->get("tsbig.tsk");
 # Eliminate 65536 offset from _START_ for each symbol in the executable
-foreach my $elem (@{$symtab_basename_map{"tsbig.tsk"}}) {
-  $elem->[0] -= 65536;
-}
+#foreach my $elem (@{$symtab_basename_map{"tsbig.tsk"}}) {
+#  $elem->[0] -= 65536;
+#}
 
 # TODO: Why am I having to sort these again???
 # my (@sorted) = sort { $a->[0] <=> $b->[0] } @{$symtab_basename_map{"tsbig.tsk"}};
@@ -316,6 +319,13 @@ say join("\n", $symbol_table_cache->get_keys);
 # /usr/ccs/bin/nm -C /bb/bin/m_wsrusr.tsk |
 # nawk -F'|' '$4 ~ /^FUNC/ { print $2, $3, $NF }' |
 # sort -nk 1,1 > /tmp/m_wsrusr.syms
+#
+# UPDATE:
+# NOW, CHANGE TO:
+# /usr/ccs/bin/nm -t d -P /bb/bin/m_wsrusr.tsk |
+# nawk '$2 ~ /^[tT]$/ { print $1, $3, $4 }' |
+# sort -nk 2,2 > /tmp/m_wsrusr.syms
+#
 # This should *definitely* be cached to a file between iterations, especially if the
 # binary we're examining is > 500 MB in size
 
@@ -393,19 +403,15 @@ sub gen_symbol_table {
 
   say "Building symtab for $exec_or_lib_path";
   # TODO: Convert to IO::Async::Process
-  my $out       = capture( "$nm -C $exec_or_lib_path" );
+  my $out       = capture( "$nm -t d -P $exec_or_lib_path" );
 
   say "CAPTURED " . length($out) . " BYTES OF OUTPUT FROM nm OF $exec_or_lib_path";
 
   say "Parsing nm output for: $exec_or_lib_path";
-  while ($out =~ m{^ [^|]+ \|
-                     \s+? (?<offset>\d+)    \|   # Offset from base
-                     \s+? (?<size>\d+)      \|   # Size
-                     (?<type>FUNC|OBJT) \s+ \|   # It's a Function! (or the _START_ OBJT)
-                     [^|]+                  \|
-                     [^|]+                  \|
-                     [^|]+                  \|
-                     (?<funcname>[^\n]+)    \n
+  while ($out =~ m{^ (?<funcname>\S+)      \s+    # Function name
+                     (?<type>[Ttd])        \s+    # It's a Function! (or the _START_ OBJT)
+                     (?<offset>\d+)        \s+    # Offset from base (in decimal)
+                     (?<size>\d+)     \s   \n     # Size
                   }gsmx) {
     my $val = [ $+{offset}, $+{size}, $+{funcname} ];
     if (not defined($_start_offset)) {
@@ -417,7 +423,7 @@ sub gen_symbol_table {
     }
     # skip all types that aren't functions, or weren't already handled as
     # the special _START_ OBJT symbol above
-    next if ($+{type} eq "OBJT");
+    next if ($+{type} eq "d");
     push @$symtab_aref, $val;
     if (($symcount++ % 1000) == 0) {
       say "$exec_or_lib_path: PARSED $symcount SYMBOLS";
@@ -432,6 +438,7 @@ sub gen_symbol_table {
   if ($_start_offset == 0) {
     say "NO NEED TO ADJUST OFFSETS FOR SYMBOLS IN: $exec_or_lib_path";
   } else {
+    say "ADJUSTING OFFSETS FOR SYMBOLS IN: $exec_or_lib_path, BY $_start_offset";
     foreach my $symval (@$symtab_aref) {
       $symval->[0] -= $_start_offset;
     }
@@ -563,7 +570,7 @@ WHATFOR_END
   $script =~ s/__EXECNAME__/$execname/gsmx;
   $whatfor_script =~ s/__EXECNAME__/$execname/gsmx;
 
-  return $whatfor_script;
+  return $script;
 }
 
 #
