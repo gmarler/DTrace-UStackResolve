@@ -262,8 +262,8 @@ say Dumper( \@absolute_file_paths );
 # Look for the symbol tables missing from the cache
 my @missing_symtab_cache_items = 
   grep { not defined($symbol_table_cache->get(basename($_))); }
-  @absolute_file_paths,
-  $execpath;         # Don't forget to add the executable path itself
+  $execpath,         # Don't forget to add the executable path itself
+  @absolute_file_paths;
 
 # Create the missing cache items
 my $symtabs_f = fmap {
