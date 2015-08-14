@@ -67,12 +67,13 @@ my $direct_symbol_cache =
   );
 
 my $symbol_table_cache =
-  CHI->new( driver       => 'RawMemory',
-            cache_size   => '512m',
+  CHI->new( driver       => 'File',
+            cache_size   => '4096',
+            root_dir     => '/bb/pm/data/symbol_tables',
             namespace    => 'symbol_tables',
-            global       => 1,
             on_get_error => 'warn',
             on_set_error => 'warn',
+            l1_cache => { driver => 'RawMemory', global => 0, max_size => 64*1024*1024 }
            );
 
 my $ustack_resolve_pids_cache =
@@ -92,15 +93,6 @@ my $exec_ustack_cache =
             on_get_error => 'warn',
             on_set_error => 'warn',
   );
-
-#my $symtab_basename_map_cache =
-#  CHI->new(
-#            driver       => 'File',
-#            root_dir     => '/bb/pm/data/symtab_basename_map',
-#            cache_size   => '4096m',
-#            on_get_error => 'warn',
-#            on_set_error => 'warn',
-#  );
 
 
 sub get_execname_pids {
@@ -267,6 +259,13 @@ say Dumper( \@absolute_file_paths );
 # tables, and ultimately, symbol table lookup cache
 #
 
+# Look for the symbol tables missing from the cache
+my @missing_symtab_cache_items = 
+  grep { not defined($symbol_table_cache->get(basename($_))); }
+  @absolute_file_paths,
+  $execpath;         # Don't forget to add the executable path itself
+
+# Create the missing cache items
 my $symtabs_f = fmap {
   my ($absolute_path) = shift;
   say "Creating symbol table for $absolute_path";
@@ -274,8 +273,7 @@ my $symtabs_f = fmap {
       $absolute_path => $gen_symtab_func->call( args => [ $absolute_path ] )->get
   );
 } foreach => [ 
-               $execpath,  # Don't forget to add the executable path itself
-               @absolute_file_paths,
+               @missing_symtab_cache_items
              ], concurrent => 2;
 
 my %symtabs = $symtabs_f->get;
@@ -283,13 +281,13 @@ my %symtabs = $symtabs_f->get;
 my %symtab_basename_map;
 say "SYMBOL TABLE KEYS:";
 foreach my $symtab_path (keys %symtabs) {
-  $symtab_basename_map{basename($symtab_path)}  = $symtabs{$symtab_path};
+  #$symtab_basename_map{basename($symtab_path)}  = $symtabs{$symtab_path};
   # if (basename($symtab_path) eq "libperl.so.5.22.0") {
   #   say Dumper($symtabs{$symtab_path});
   # }
-  #unless (defined($symbol_table_cache->set(basename($symtab_path), $symtabs{$symtab_path}, '1 day'))) {
-  #  say "FAILED to store KEY basename($symtab_path) in CACHE!"
-  #}
+  unless (defined($symbol_table_cache->set(basename($symtab_path), $symtabs{$symtab_path}, '1 day'))) {
+    say "FAILED to store KEY basename($symtab_path) in CACHE!"
+  }
 }
 
 # TEMPORARY WORKAROUND: Load directly the executable ustack symtab
@@ -403,26 +401,31 @@ sub gen_symbol_table {
   say "CAPTURED " . length($out) . " BYTES OF OUTPUT FROM nm OF $exec_or_lib_path";
 
   say "Parsing nm output for: $exec_or_lib_path";
-  while ($out =~ m{^   [^|]+      \|
-                       \s+? (\d+) \|   # Offset from base
-                       \s+? (\d+) \|   # Size
-                       FUNC \s+   \|   # It's a Function! (or the _START_ OBJT)
-                       [^|]+      \|
-                       [^|]+      \|
-                       [^|]+      \|
-                       ([^\n]+) \n
-                  }gsmx) {
-    my $val = [ $+{offset}, $+{size}, $+{funcname} ];
+  while ($out =~ m/^ [^|]+                           \|
+                     (?:\s+)? (?<offset>\d+)         \| # Offset from base
+                     (?:\s+)? (?<size>\d+)           \| # Size
+                     (?<type>(?:FUNC|OBJT)) (?:\s+)? \| # A Function (or _START_ OBJT)
+                     [^|]+                           \|
+                     [^|]+                           \|
+                     [^|]+                           \|
+                     (?<funcname>[^\n]+)    \n
+                  /gsmx) {
+    my ($val);
+    #say "MATCHED: $+{funcname}";
     if (not defined($_start_offset)) {
-      if ($val->[2] eq "_START_") {
-        say "FOUND _START_ OFFSET OF: $val->[0]";
-        $_start_offset = $val->[0];
+      if ($+{funcname} eq "_START_") {
+        say "FOUND _START_ OFFSET OF: $+{offset}";
+        $_start_offset = $+{offset};
         next;
       }
     }
+
     # skip all types that aren't functions, or weren't already handled as
     # the special _START_ OBJT symbol above
     next if ($+{type} eq "OBJT");
+
+    $val = [ $+{offset}, $+{size}, $+{funcname} ];
+
     push @$symtab_aref, $val;
     if (($symcount++ % 1000) == 0) {
       say "$exec_or_lib_path: PARSED $symcount SYMBOLS";
@@ -752,7 +755,7 @@ sub resolve_symbols {
     # TODO: Use the PID to lookup the correct symbol table entries
     #       in the symbol_table cache namespace
     #if (defined( $symtab = $symbol_table_cache->get($keyfile) )) {
-    if (defined( $symtab = $symtab_basename_map{$keyfile} )) {
+    if (defined( $symtab = $symbol_table_cache->get($keyfile) )) {
       my $dec_offset = Math::BigInt->from_hex($offset);
       my $index = _binarySearch($dec_offset,$symtab);
       # NOTE: Use defined($index) because the $index can validly be '0'
