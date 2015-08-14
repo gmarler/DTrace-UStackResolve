@@ -493,13 +493,13 @@ tick-19hour
 }
 END
 
-  my $whatfor_script = <<'END';
+  my $whatfor_script = <<'WHATFOR_END';
 #pragma D option noresolve
 #pragma D option quiet
 #pragma D option ustackframes=100
 
 sched:::off-cpu
-/ execname == __EXECNAME__ &&
+/ execname == "__EXECNAME__" &&
   curlwpsinfo &&
   curlwpsinfo->pr_state == SSLEEP /
 {
@@ -511,7 +511,7 @@ sched:::off-cpu
 }
 
 sched:::off-cpu
-/ execname == __EXECNAME__ &&
+/ execname == "__EXECNAME__" &&
   curlwpsinfo &&
   curlwpsinfo->pr_state == SRUN /
 {
@@ -542,12 +542,28 @@ sched:::on-cpu
   self->sobj = 0; 
   self->bedtime = 0; 
 }
-END
 
-  $script =~ s/__EXECNAME__/$execname/smx;
-  $whatfor_script =~ s/__EXECNAME__/$execname/smx;
+tick-1sec
+{
+  printf("\n%Y\n",walltimestamp);
 
-  return $script;
+  printf("%-32s %5s %-3s %-12s\n","SOBJ OR PREEMPTED","PID","TID","LATENCY(ns)");
+  printa("%-32s %5d %-3d %-@12u\n",@);
+
+  trunc(@sdata,32);
+  /* printa("PID:%5d %-3d %k %k %@12u\n",@sdata); */
+  printa("%5d %-3d %k %k %@12u\n",@sdata);
+
+  trunc(@);
+  trunc(@sdata);
+}
+
+WHATFOR_END
+
+  $script =~ s/__EXECNAME__/$execname/gsmx;
+  $whatfor_script =~ s/__EXECNAME__/$execname/gsmx;
+
+  return $whatfor_script;
 }
 
 #
