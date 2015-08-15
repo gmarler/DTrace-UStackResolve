@@ -57,7 +57,7 @@ my (%direct_symbol_datastore);
 CHI->stats->enable();
 
 my $direct_symbol_cache =
-  CHI->new( driver       => 'File',
+  CHI->new( driver       => 'BerkeleyDB',
             cache_size   => '1024m',
             root_dir     => '/bb/pm/data/symbol_tables',
             namespace    => 'direct_symbol',
@@ -69,7 +69,7 @@ my $direct_symbol_cache =
   );
 
 my $symbol_table_cache =
-  CHI->new( driver       => 'File',
+  CHI->new( driver       => 'BerkeleyDB',
             cache_size   => '1024m',
             root_dir     => '/bb/pm/data/symbol_tables',
             namespace    => 'symbol_tables',
