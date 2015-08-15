@@ -277,7 +277,9 @@ foreach my $symtab_path (keys %symtabs) {
   # if (basename($symtab_path) eq "libperl.so.5.22.0") {
   #   say Dumper($symtabs{$symtab_path});
   # }
-  unless (defined($symbol_table_cache->set(basename($symtab_path), $symtabs{$symtab_path}, '1 day'))) {
+  unless (defined($symbol_table_cache
+                  ->set(basename($symtab_path),
+                        $symtabs{$symtab_path}, '7 days'))) {
     say "FAILED to store KEY basename($symtab_path) in CACHE!"
   }
 }
