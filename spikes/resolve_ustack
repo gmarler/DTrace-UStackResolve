@@ -24,7 +24,7 @@ use Digest::SHA1;
 use Data::Dumper;
 use IPC::System::Simple   qw( capture );
 # Needs Exporter::ConditionalSubs
-use Assert::Conditional  qw( :scalar );
+#use Assert::Conditional  qw( :scalar );
 use IO::File;
 use File::Temp            qw( );
 use Math::BigInt          qw( );
@@ -424,10 +424,7 @@ sub gen_symbol_table {
     }
   }
   # ASSERT that $_start_offset is defined
-  assert_defined_variable($_start_offset);
-  #unless (defined($_start_offset)) {
-  #  die "UNABLE TO PROCEED";
-  #}
+  #assert_defined_variable($_start_offset);
 
   if ($_start_offset == 0) {
     say "NO NEED TO ADJUST OFFSETS FOR SYMBOLS IN: $exec_or_lib_path";
@@ -645,10 +642,12 @@ sub start_dtrace {
 start_dtrace(basename($execname));
 
 sub start_stack_resolve {
-  my ($logfile) = shift;
+  my ($logfile,$exec_basename) = @_;
 
   my $log_fh      = IO::File->new($logfile, "<");
-  my $resolved_fh = IO::File->new("/bb/pm/data/dscript.out.resolved", ">>");
+  #my $resolved_fh = IO::File->new("/bb/pm/data/$exec_basename-.resolved", ">>");
+  my $resolved_fh = IO::File->new;
+  $resolved_fh->fdopen(fileno(STDOUT),"w");
 
   my $filestream = IO::Async::FileStream->new(
     read_handle => $log_fh,
@@ -690,7 +689,7 @@ sub start_stack_resolve {
   $loop->add( $filestream );
 }
 
-start_stack_resolve("/bb/pm/data/dscript.out");
+start_stack_resolve("/bb/pm/data/dscript.out",basename($execname));
 
 $loop->run;
 
