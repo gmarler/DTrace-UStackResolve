@@ -6,7 +6,7 @@ use warnings;
 use v5.22.0;
 
 use Log::Log4perl         qw( :easy );
-#use Log::Any::Adapter     qw( Stdout );
+use Log::Any::Adapter     qw( Stdout );
 use Log::Any              qw( $log );
 use File::stat;
 use File::Basename;
@@ -24,7 +24,7 @@ use Digest::SHA1;
 use Data::Dumper;
 use IPC::System::Simple   qw( capture );
 # Needs Exporter::ConditionalSubs
-#use Assert::Conditional  qw( :scalar );
+use Assert::Conditional  qw( :scalar );
 use IO::File;
 use File::Temp            qw( );
 use Math::BigInt          qw( );
@@ -38,8 +38,8 @@ Readonly::Scalar my $pgrep  => "/bin/pgrep";
 Readonly::Scalar my $nm     => "/usr/ccs/bin/nm";
 Readonly::Scalar my $DTRACE => "/sbin/dtrace";
 
-Log::Log4perl->easy_init($DEBUG);
-#Log::Any::Adapter->set('Log4perl');
+Log::Log4perl->easy_init($INFO);
+Log::Any::Adapter->set('Log4perl');
 
 my ($execname,$execpath);
 
@@ -54,21 +54,23 @@ my @execname_pids;
 
 my (%direct_symbol_datastore);
 
-# CHI->stats->enable();
+CHI->stats->enable();
 
 my $direct_symbol_cache =
-  CHI->new( driver       => 'RawMemory',
-            cache_size   => '512m',
+  CHI->new( driver       => 'File',
+            cache_size   => '1024m',
+            root_dir     => '/bb/pm/data/symbol_tables',
             namespace    => 'direct_symbol',
             #datastore    => \%direct_symbol_datastore,
             global       => 1,
             on_get_error => 'warn',
             on_set_error => 'warn',
+            l1_cache => { driver => 'RawMemory', global => 0, max_size => 128*1024*1024 }
   );
 
 my $symbol_table_cache =
   CHI->new( driver       => 'File',
-            cache_size   => '4096',
+            cache_size   => '1024m',
             root_dir     => '/bb/pm/data/symbol_tables',
             namespace    => 'symbol_tables',
             on_get_error => 'warn',
@@ -84,15 +86,6 @@ my $ustack_resolve_pids_cache =
             on_get_error => 'warn',
             on_set_error => 'warn',
            );
-
-my $exec_ustack_cache =
-  CHI->new(
-            driver       => 'File',
-            root_dir     => '/bb/pm/data/ustack_execs',
-            cache_size   => '4096m',
-            on_get_error => 'warn',
-            on_set_error => 'warn',
-  );
 
 
 sub get_execname_pids {
@@ -290,14 +283,6 @@ foreach my $symtab_path (keys %symtabs) {
   }
 }
 
-# TEMPORARY WORKAROUND: Load directly the executable ustack symtab
-#$symtab_basename_map_cache->set("tsbig.tsk", $exec_ustack_cache->get("tsbig.tsk"), '1 day');
-#$symtab_basename_map{"tsbig.tsk"} = $exec_ustack_cache->get("tsbig.tsk");
-# Eliminate 65536 offset from _START_ for each symbol in the executable
-#foreach my $elem (@{$symtab_basename_map{"tsbig.tsk"}}) {
-#  $elem->[0] -= 65536;
-#}
-
 # TODO: Why am I having to sort these again???
 # my (@sorted) = sort { $a->[0] <=> $b->[0] } @{$symtab_basename_map{"tsbig.tsk"}};
 # $symtab_basename_map{'tsbig.tsk'} = \@sorted;
@@ -432,10 +417,10 @@ sub gen_symbol_table {
     }
   }
   # ASSERT that $_start_offset is defined
-  #assert_defined_variable($_start_offset);
-  unless (defined($_start_offset)) {
-    die "UNABLE TO PROCEED";
-  }
+  assert_defined_variable($_start_offset);
+  #unless (defined($_start_offset)) {
+  #  die "UNABLE TO PROCEED";
+  #}
 
   if ($_start_offset == 0) {
     say "NO NEED TO ADJUST OFFSETS FOR SYMBOLS IN: $exec_or_lib_path";
@@ -818,5 +803,5 @@ sub _binarySearch
 
 
 END {
-  # CHI->stats->flush();
+  CHI->stats->flush();
 }
