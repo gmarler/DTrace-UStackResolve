@@ -24,7 +24,7 @@ use Digest::SHA1;
 use Data::Dumper;
 use IPC::System::Simple   qw( capture );
 # Needs Exporter::ConditionalSubs
-#use Assert::Conditional  qw( :scalar );
+use Assert::Conditional  qw( :scalar );
 use IO::File;
 use File::Temp            qw( );
 use Math::BigInt          qw( );
@@ -424,7 +424,7 @@ sub gen_symbol_table {
     }
   }
   # ASSERT that $_start_offset is defined
-  #assert_defined_variable($_start_offset);
+  assert_defined_variable($_start_offset);
 
   if ($_start_offset == 0) {
     say "NO NEED TO ADJUST OFFSETS FOR SYMBOLS IN: $exec_or_lib_path";
