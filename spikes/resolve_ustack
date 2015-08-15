@@ -466,7 +466,7 @@ sub build_dtrace_script {
 #pragma D option quiet
 #pragma D option ustackframes=100
 
-profile-97Hz
+profile-197Hz
 / execname == "__EXECNAME__" /
 {
   @s[pid,tid,stack(),ustack()] = count();
@@ -488,10 +488,6 @@ tick-1sec
   trunc(@s);
 }
 
-tick-19hour
-{
-  exit(0);
-}
 END
 
   my $whatfor_script = <<'WHATFOR_END';
@@ -552,7 +548,7 @@ tick-1sec
   printa("%-32s %5d %-3d %-@12u\n",@);
 
   trunc(@sdata,32);
-  /* printa("PID:%5d %-3d %k %k %@12u\n",@sdata); */
+  /* printa("PID:%-5d %-3d %k %k %@12u\n",@sdata); */
   printa("%5d %-3d %k %k %@12u\n",@sdata);
 
   trunc(@);
@@ -685,39 +681,8 @@ sub start_stack_resolve {
         }
         $line = resolve_symbols( $line, $current_pid );
         $resolved_fh->print( "$line\n" );
-        # $resolve_symbols_func->call(
-        #   args => [ $line, $current_pid, $direct_symbol_cache, $symtab_basename_map_cache ],
-        #   #init => sub {
-        #   #  our $symtab_basename_map_cache =
-        #   #    CHI->new(
-        #   #      driver       => 'File',
-        #   #      root_dir     => '/bb/pm/data/symtab_basename_map',
-        #   #      cache_size   => '4096m',
-        #   #      on_get_error => 'warn',
-        #   #      on_set_error => 'warn',
-        #   #      l1_cache => { driver => 'RawMemory', global => 1, max_size => 64*1024*1024 }
-        #   #    );
-        #   #  our $direct_symbol_cache =
-        #   #    CHI->new( driver       => 'RawMemory',
-        #   #              cache_size   => '512m',
-        #   #              namespace    => 'direct_symbol',
-        #   #              #datastore    => \%direct_symbol_datastore,
-        #   #              global       => 1,
-        #   #              on_get_error => 'warn',
-        #   #              on_set_error => 'warn',
-        #   #    );
-
-        #   #},
-        # )->on_done( sub {
-        #               my $resolved_symbol = shift;
-        #               $resolved_fh->print( "$resolved_symbol\n" );
-        #             }
-        # )->on_fail( sub {
-        #               carp "Unable to resolve $line";
-        #             }
-        # )->get;
       }
- 
+
       return 0;
     },
   );
@@ -731,7 +696,6 @@ $loop->run;
 
 sub resolve_symbols {
   my ($line,$pid) = @_;
-  #my ($line,$direct_symbol_cache,$symtab_basename_map_cache,$pid) = @_;
 
   my ($symtab);
   my $unresolved_re =
