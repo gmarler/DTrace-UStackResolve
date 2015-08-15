@@ -30,6 +30,7 @@ use File::Temp            qw( );
 use Math::BigInt          qw( );
 use Carp;
 use CHI;
+use Tree::RB              qw( LULTEQ );
 
 use Readonly;
 
@@ -271,10 +272,8 @@ my $symtabs_f = fmap {
 
 my %symtabs = $symtabs_f->get;
 
-my %symtab_basename_map;
 say "SYMBOL TABLE KEYS:";
 foreach my $symtab_path (keys %symtabs) {
-  #$symtab_basename_map{basename($symtab_path)}  = $symtabs{$symtab_path};
   # if (basename($symtab_path) eq "libperl.so.5.22.0") {
   #   say Dumper($symtabs{$symtab_path});
   # }
@@ -283,14 +282,20 @@ foreach my $symtab_path (keys %symtabs) {
   }
 }
 
-# TODO: Why am I having to sort these again???
-# my (@sorted) = sort { $a->[0] <=> $b->[0] } @{$symtab_basename_map{"tsbig.tsk"}};
-# $symtab_basename_map{'tsbig.tsk'} = \@sorted;
-
-say join("\n", keys %symtab_basename_map);
-
 say "SYMBOL TABLE KEYS IN CACHE:";
 say join("\n", $symbol_table_cache->get_keys);
+
+say "CREATING RED-BLACK SYMBOL TREE";
+my %symtab_trees;
+foreach my $key ($symbol_table_cache->get_keys) {
+  my $symtab_aref = $symbol_table_cache->get($key);
+  my $tree = Tree::RB->new();
+  foreach my $entry (@$symtab_aref) {
+    $tree->put( $entry->[0], $entry );
+  }
+
+  $symtab_trees{$key} = $tree;
+}
 
 #my $first_key = (keys %symtabs)[0];
 
@@ -476,7 +481,7 @@ tick-1sec
    * of the same executable), and SHA-1 of the executable are all
    * identical between PIDs.
    */
-  printa("PID:%5d %-3d %k %k %@12u\n",@s);
+  printa("PID:%-5d %-3d %k %k %@12u\n",@s);
 
   trunc(@s);
 }
@@ -735,38 +740,59 @@ sub resolve_symbols {
     if (my ($result) = $direct_symbol_cache->get($line)) {
       return $result if defined($result);
     }
-    my ($keyfile, $offset) = ($+{keyfile}, $+{offset});
-    #say "MATCHED: $keyfile, OFFSET: $offset";
+    my ($keyfile, $offset) = ($+{keyfile}, hex( $+{offset} ) );
+    #
     # TODO: Use the PID to lookup the correct symbol table entries
     #       in the symbol_table cache namespace
-    #if (defined( $symtab = $symbol_table_cache->get($keyfile) )) {
-    if (defined( $symtab = $symbol_table_cache->get($keyfile) )) {
-      my $dec_offset = Math::BigInt->from_hex($offset);
-      my $index = _binarySearch($dec_offset,$symtab);
-      # NOTE: Use defined($index) because the $index can validly be '0'
-      if (defined($index)) {
-        my ($symtab_entry) = $symtab->[$index];
-        # If we actually found the proper symbol table entry, make a pretty output
-        # in the stack for it
-        if ($symtab_entry) {
-          my $funcname = $symtab_entry->[2];
-          # my $funcsize = $symtab_entry->[1];
-          # say "FUNCNAME: $funcname";
+    # NOTE: This may no longer be necessary, actually, except for
+    #       the executable itself.
+    #
+    ###   if (defined( $symtab = $symbol_table_cache->get($keyfile) )) {
+    ###     my $dec_offset = Math::BigInt->from_hex($offset);
+    ###     my $index = _binarySearch($dec_offset,$symtab);
+    ###     # NOTE: Use defined($index) because the $index can validly be '0'
+    ###     if (defined($index)) {
+    ###       my ($symtab_entry) = $symtab->[$index];
+    ###       # If we actually found the proper symbol table entry, make a pretty output
+    ###       # in the stack for it
+    ###       if ($symtab_entry) {
+    ###         my $funcname = $symtab_entry->[2];
+    ###         # my $funcsize = $symtab_entry->[1];
+    ###         # say "FUNCNAME: $funcname";
+    ###         my $resolved =
+    ###           sprintf("%s+0x%x",
+    ###                   $funcname,
+    ###                   $dec_offset - Math::BigInt->new($symtab_entry->[0]));
+    ###         # If we got here, we have something to store in the direct symbol
+    ###         # lookup cache
+    ###         $direct_symbol_cache->set($line,$resolved,'7 days');
+    ###         $line =~ s/^(?<keyfile>[^:]+):0x(?<offset>[\da-fA-F]+)$/${resolved}/;
+    ###       } else {
+    ###         die "WHAT THE HECK HAPPENED???";
+    ###       }
+    ###     } else {
+    ###       $line .= " [SYMBOL TABLE LOOKUP FAILED]";
+    ###     }
+    ###     #say "symtab lookup successful";
+    if ( defined( my $search_tree = $symtab_trees{$keyfile} ) ) {
+      my $symtab_entry = $search_tree->lookup( $offset, LULTEQ );
+      if (defined($symtab_entry)) {
+        if (($offset >= $symtab_entry->[0] ) and
+            ($offset <= ($symtab_entry->[0] + $symtab_entry->[1]) ) ) {
           my $resolved =
             sprintf("%s+0x%x",
-                    $funcname,
-                    $dec_offset - Math::BigInt->new($symtab_entry->[0]));
+                    $symtab_entry->[2],
+                    $offset - $symtab_entry->[0]);
           # If we got here, we have something to store in the direct symbol
           # lookup cache
           $direct_symbol_cache->set($line,$resolved,'7 days');
           $line =~ s/^(?<keyfile>[^:]+):0x(?<offset>[\da-fA-F]+)$/${resolved}/;
         } else {
-          die "WHAT THE HECK HAPPENED???";
+          $line .= " [SYMBOL TABLE LOOKUP FAILED]";
         }
       } else {
-        $line .= " [SYMBOL TABLE LOOKUP FAILED]";
+        die "WHAT THE HECK HAPPENED???";
       }
-      #say "symtab lookup successful";
     } else {
       $line .= " [NO SYMBOL TABLE FOR $keyfile]";
     }
