@@ -8,6 +8,8 @@ use namespace::autoclean;
 use IO::Async;
 use Future;
 
+use ReadOnly;
+
 # VERSION
 #
 # ABSTRACT: Resolve User Stacks from DTrace for Large Binaries
@@ -35,6 +37,12 @@ The purpose of this module is to perform that resolution.
 =head1 ATTRIBUTES
 
 =cut
+
+Readonly::Scalar my $PMAP   => "/bin/pmap";
+Readonly::Scalar my $PGREP  => "/bin/pgrep";
+Readonly::Scalar my $NM     => "/usr/ccs/bin/nm";
+Readonly::Scalar my $DTRACE => "/sbin/dtrace";
+
 
 
 =head1 METHODS
