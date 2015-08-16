@@ -139,6 +139,22 @@ rather than a live PID.
 
 =cut
 
+=head1 UTILITY / PRIVATE FUNCTIONS
+
+=cut
+
+sub get_execname_pids {
+  my ($self, $execname) = shift;
+ 
+  my @output = capture( "$pgrep -lxf '^$execname.+'" );
+  chomp(@output);
+  say "PIDS:";
+  say join("\n",@output);
+  #say Dumper( \@output );
+  my @pids = map { my $line = $_; $line =~ m/^(?:\s+)?(?<pid>\d+)\s+/; $+{pid}; } @output;
+  #say Dumper( \@pids );
+  return \@pids;
+}
 
 
 
