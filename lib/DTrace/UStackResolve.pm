@@ -38,11 +38,6 @@ The purpose of this module is to perform that resolution.
 
 =cut
 
-#Readonly::Scalar my $PMAP   => "/bin/pmap";
-#Readonly::Scalar my $PGREP  => "/bin/pgrep";
-#Readonly::Scalar my $NM     => "/usr/ccs/bin/nm";
-#Readonly::Scalar my $DTRACE => "/sbin/dtrace";
-
 # Constants
 has 'PMAP' => (
   init_arg    => undef,
@@ -72,11 +67,26 @@ has 'DTRACE' => (
   default     => "/sbin/dtrace",
 );
 
-
+# Real Attributes
 has 'loop' => (
   is          => 'ro',
   isa         => 'IO::Async::Loop',
   default     => sub { IO::Async::Loop->new; },
+);
+
+has 'execname' => (
+  is          => 'ro',
+  isa         => 'Str',
+  #builder     => _build_execname,
+  required    => 1,
+);
+
+has 'pids' => (
+  is          => 'rw',
+  isa         => 'ArrayRef[Int]',
+  default     => sub { [ ]; },
+  builder     => _build_pids,
+  lazy        => 1,
 );
 
 has 'symbol_table_cache' => (
@@ -139,13 +149,14 @@ rather than a live PID.
 
 =cut
 
-=head1 UTILITY / PRIVATE FUNCTIONS
+=head1 BUILDERS
 
 =cut
 
-sub get_execname_pids {
-  my ($self, $execname) = shift;
- 
+sub _build_pids {
+  my ($self) = shift;
+
+  my $execname = $self->execname; 
   my @output = capture( "$pgrep -lxf '^$execname.+'" );
   chomp(@output);
   say "PIDS:";
