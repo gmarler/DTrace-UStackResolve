@@ -1,6 +1,7 @@
 use Test::Class::Moose::Load 't/lib';
+use Test::Class::Moose::Runner;
 
-my $test_suite = Test::Class::Moose->new(
+my $test_suite = Test::Class::Moose::Runner->new(
   show_timing  => 0,
   randomize    => 0,
   statistics   => 1,

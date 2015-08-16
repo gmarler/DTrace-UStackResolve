@@ -7,8 +7,7 @@ use Moose;
 use namespace::autoclean;
 use IO::Async;
 use Future;
-
-use ReadOnly;
+use CHI;
 
 # VERSION
 #
@@ -38,10 +37,52 @@ The purpose of this module is to perform that resolution.
 
 =cut
 
-Readonly::Scalar my $PMAP   => "/bin/pmap";
-Readonly::Scalar my $PGREP  => "/bin/pgrep";
-Readonly::Scalar my $NM     => "/usr/ccs/bin/nm";
-Readonly::Scalar my $DTRACE => "/sbin/dtrace";
+#Readonly::Scalar my $PMAP   => "/bin/pmap";
+#Readonly::Scalar my $PGREP  => "/bin/pgrep";
+#Readonly::Scalar my $NM     => "/usr/ccs/bin/nm";
+#Readonly::Scalar my $DTRACE => "/sbin/dtrace";
+
+# Constants
+has 'PMAP' => (
+  init_arg    => undef,
+  is          => 'ro',
+  isa         => 'Str',
+  default     => "/bin/pmap",
+);
+
+has 'NM' => (
+  #init_arg    => undef,
+  is          => 'ro',
+  isa         => 'Str',
+  default     => "/usr/ccs/bin/nm",
+);
+
+
+
+has 'symbol_table_cache' => (
+  is          => 'ro',
+  builder     => '_build_symbol_table_cache',
+  lazy        => 1,
+);
+
+
+
+sub _build_symbol_table_cache {
+  my ($self) = shift;
+
+  # TODO: Allow constructor to pass in a directory to hold the caches
+  CHI->new( 
+            #driver       => 'BerkeleyDB',
+            driver       => 'File',
+            cache_size   => '1024m',
+            #root_dir     => '/bb/pm/data/symbol_tables',
+            root_dir     => '/tmp/symbol_tables',
+            namespace    => 'symbol_tables',
+            on_get_error => 'warn',
+            on_set_error => 'warn',
+            l1_cache => { driver => 'RawMemory', global => 0, max_size => 64*1024*1024 }
+           );
+}
 
 
 
