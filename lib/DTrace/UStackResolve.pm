@@ -12,17 +12,21 @@ use Future;
 #
 # ABSTRACT: Resolve User Stacks from DTrace for Large Binaries
 
-=head1
+=head1 SYNOPSIS
 
-With larger binaries, it's often the case that using DTrace's ustack() call will
-take very long amounts of time to complete the symbol table lookups - often long
-enough to make DTrace abort because it appears "unresponsive".
+=head1 DESCRIPTON
+
+With larger binaries, it's often the case that using DTrace's C<ustack()>
+action will take very long amounts of time to complete the symbol table
+lookups - often long enough to make DTrace abort because it appears
+"unresponsive".
 
 With the advent of this DTrace pragma:
 
 #pragma D option noresolve
 
-The output of ustack() will be unresolved, for resolution later.
+the output of the C<ustack()> action will be unresolved, for resolution
+later.
 
 The purpose of this module is to perform that resolution.
 
