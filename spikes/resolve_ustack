@@ -676,6 +676,7 @@ sub start_stack_resolve {
           #       namespaces, generating them asynchronously if necessary:
           # - ustack_resolve_pids
           # - symbol_table
+          $resolved_fh->print( "$line\n" );
           next;
         }
         $line = resolve_symbols( $line, $current_pid );
