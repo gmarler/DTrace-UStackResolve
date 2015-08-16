@@ -6,6 +6,7 @@ use warnings;
 use Moose;
 use namespace::autoclean;
 use IO::Async;
+use IO::Async::Loop;
 use Future;
 use CHI;
 
@@ -72,6 +73,11 @@ has 'DTRACE' => (
 );
 
 
+has 'loop' => (
+  is          => 'ro',
+  isa         => 'IO::Async::Loop',
+  default     => sub { IO::Async::Loop->new; },
+);
 
 has 'symbol_table_cache' => (
   is          => 'ro',

@@ -51,3 +51,9 @@ sub test_constants {
   }
 }
 
+sub test_loop {
+  my ($test) = shift;
+
+  my $obj = $test->class_name->new;
+  isa_ok( $obj->loop, 'IO::Async::Loop' );
+}
