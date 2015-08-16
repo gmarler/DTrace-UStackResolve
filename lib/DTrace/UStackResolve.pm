@@ -51,10 +51,24 @@ has 'PMAP' => (
 );
 
 has 'NM' => (
-  #init_arg    => undef,
+  init_arg    => undef,
   is          => 'ro',
   isa         => 'Str',
   default     => "/usr/ccs/bin/nm",
+);
+
+has 'PGREP' => (
+  init_arg    => undef,
+  is          => 'ro',
+  isa         => 'Str',
+  default     => "/bin/pgrep",
+);
+
+has 'DTRACE' => (
+  init_arg    => undef,
+  is          => 'ro',
+  isa         => 'Str',
+  default     => "/sbin/dtrace",
 );
 
 

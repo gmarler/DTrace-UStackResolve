@@ -24,20 +24,30 @@ sub test_startup {
 sub test_constructor {
   my ($test) = shift;
 
-  can_ok( $test->test_class, 'new' );
-
+  can_ok( $test->class_name, 'new' );
 }
 
 sub test_constants {
   my ($test) = shift;
 
-  my ($obj) = $test->test_class->new();
-  isa_ok($obj, $test->test_class);
+  my @constants = qw( PMAP NM PGREP DTRACE );
 
-  can_ok( $test->test_class, 'NM' );
-  diag $obj->dump;
-  #diag $obj->NM;
-  #is( defined($obj->NM), 1,
-  #    'nm constant found' );
+  can_ok( $test->class_name, @constants );
+  my $obj = $test->class_name->new;
+
+  #diag $obj->dump;
+
+  foreach my $constant( @constants ) {
+    is( defined($obj->$constant), 1,
+      "$constant constant is defined" );
+  }
+
+  if ($^O eq "SunOS") {
+    foreach my $constant (@constants) {
+      is( -e $obj->$constant, 1, "Location for $constant exists" );
+    }
+  } else {
+    diag "SKIPPING check for presence of constant paths - only valid on Solaris";
+  }
 }
 
