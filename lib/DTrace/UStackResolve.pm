@@ -111,6 +111,16 @@ has 'dynamic_library_paths' => (
   predicate   => '_has_dynamic_library_paths',
 );
 
+has 'symbol_table' => (
+  is          => 'rw',
+  isa         => 'HashRef[Str]',
+  builder     => '_build_symbol_table',
+  lazy        => 1,
+  clearer     => '_clear_symbol_table',
+  predicate   => '_has_symbol_table',
+);
+
+
 has 'symbol_table_cache' => (
   is          => 'ro',
   builder     => '_build_symbol_table_cache',
@@ -223,6 +233,90 @@ sub _build_dynamic_library_paths {
   # Return the list of absolute library paths
   return [ keys %libpath_map ];
 }
+
+# Given a path to a dynamic/shared library or an executable,
+# generate the symbol table.
+# The #pragma for noresolve ensures each generated symbol will be of the
+# form <entity>:<offset from base of entity>
+#
+# This means that we can use the symbol table with base address assumed to be
+# implicitly 0 to resolve symbols without further work.
+#
+
+# TODO: Turn this from a normal builder into a Future
+sub _build_symbol_table {
+  my ($self) = shift;
+
+  my ($NM) = $self->NM;
+
+  my ($exec_or_lib_path, $exec_or_lib_sha1) = @_;
+
+  # $start_offset is the offset of the _START_ symbol in a library or exec
+  my ($symtab_aref,$symcount,$_start_offset);
+
+  # TODO: Check whether data is in cache; return immediately if it is
+
+  say "Building symtab for $exec_or_lib_path";
+  # TODO: Convert to IO::Async::Process
+  my $out       = capture( "$NM -C -t d $exec_or_lib_path" );
+
+  say "CAPTURED " . length($out) . " BYTES OF OUTPUT FROM nm FOR $exec_or_lib_path";
+
+  say "Parsing nm output for: $exec_or_lib_path";
+  while ($out =~ m/^ [^|]+                           \|
+                     (?:\s+)? (?<offset>\d+)         \| # Offset from base
+                     (?:\s+)? (?<size>\d+)           \| # Size
+                     (?<type>(?:FUNC|OBJT)) (?:\s+)? \| # A Function (or _START_ OBJT)
+                     [^|]+                           \|
+                     [^|]+                           \|
+                     [^|]+                           \|
+                     (?<funcname>[^\n]+)    \n
+                  /gsmx) {
+    my ($val);
+    #say "MATCHED: $+{funcname}";
+    if (not defined($_start_offset)) {
+      if ($+{funcname} eq "_START_") {
+        say "FOUND _START_ OFFSET OF: $+{offset}";
+        $_start_offset = $+{offset};
+        next;
+      }
+    }
+
+    # skip all types that aren't functions, or weren't already handled as
+    # the special _START_ OBJT symbol above
+    next if ($+{type} eq "OBJT");
+
+    $val = [ $+{offset}, $+{size}, $+{funcname} ];
+
+    push @$symtab_aref, $val;
+    if (($symcount++ % 1000) == 0) {
+      say "$exec_or_lib_path: PARSED $symcount SYMBOLS";
+    }
+  }
+  # ASSERT that $_start_offset is defined
+  assert_defined_variable($_start_offset);
+
+  if ($_start_offset == 0) {
+    say "NO NEED TO ADJUST OFFSETS FOR SYMBOLS IN: $exec_or_lib_path";
+  } else {
+    say "ADJUSTING OFFSETS FOR SYMBOLS IN: $exec_or_lib_path, BY $_start_offset";
+    foreach my $symval (@$symtab_aref) {
+      $symval->[0] -= $_start_offset;
+    }
+  }
+  # Sort the symbol table by starting address before returning it
+  say "SORTING SYMBOL TABLE: $exec_or_lib_path";
+  my (@sorted_symtab) = sort {$a->[0] <=> $b->[0] } @$symtab_aref;
+
+  # TODO: Add to cache with:
+  #       KEY: { exec_or_lib_path => $exec_or_lib_path, sha1 => $exec_or_lib_sha1 }
+
+  say "RETURNING SORTED SYMBOL TABLE FOR: $exec_or_lib_path";
+  return \@sorted_symtab;
+}
+
+
+
 
 1;
 
