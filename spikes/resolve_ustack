@@ -63,7 +63,7 @@ my $direct_symbol_cache =
             root_dir     => '/bb/pm/data/symbol_tables',
             namespace    => 'direct_symbol',
             #datastore    => \%direct_symbol_datastore,
-            global       => 1,
+            global       => 0,
             on_get_error => 'warn',
             on_set_error => 'warn',
             l1_cache => { driver => 'RawMemory', global => 0, max_size => 128*1024*1024 }
@@ -74,6 +74,7 @@ my $symbol_table_cache =
             cache_size   => '1024m',
             root_dir     => '/bb/pm/data/symbol_tables',
             namespace    => 'symbol_tables',
+            global       => 0,
             on_get_error => 'warn',
             on_set_error => 'warn',
             l1_cache => { driver => 'RawMemory', global => 0, max_size => 64*1024*1024 }
