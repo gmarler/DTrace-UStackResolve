@@ -77,16 +77,38 @@ has 'loop' => (
 has 'execname' => (
   is          => 'ro',
   isa         => 'Str',
-  #builder     => _build_execname,
+  #builder     => '_build_execname',
   required    => 1,
+);
+
+# The modification time(s) of the execname we started this up
+# for.  The point of this is to detect when the value increases,
+# indicating that we need to recalculate the:
+# - symbol cache
+# - Red-Black symbol lookup tree
+# - direct lookup cache
+# TODO: A check for this should be done whenever a new PID is detected
+#       in the DTrace output
+has 'execname_mtime' => (
+  is          => 'rw',
+  isa         => 'HashRef[Int]',
 );
 
 has 'pids' => (
   is          => 'rw',
   isa         => 'ArrayRef[Int]',
   default     => sub { [ ]; },
-  builder     => _build_pids,
+  builder     => '_build_pids',
   lazy        => 1,
+);
+
+has 'dynamic_library_paths' => (
+  is          => 'rw',
+  isa         => 'ArrayRef[Str]',
+  builder     => '_build_dynamic_library_paths',
+  lazy        => 1,
+  clearer     => '_clear_dynamic_library_paths',
+  predicate   => '_has_dynamic_library_paths',
 );
 
 has 'symbol_table_cache' => (
@@ -157,7 +179,7 @@ sub _build_pids {
   my ($self) = shift;
 
   my $execname = $self->execname; 
-  my @output = capture( "$pgrep -lxf '^$execname.+'" );
+  my @output = capture( "$PGREP -lxf '^$execname.+'" );
   chomp(@output);
   say "PIDS:";
   say join("\n",@output);
@@ -167,7 +189,40 @@ sub _build_pids {
   return \@pids;
 }
 
+sub _build_dynamic_library_paths {
+  my ($self) = shift;
 
+  # NOTE: It's likely we don't need to bother caching this, as it's really
+  #       quick.
+  # TODO: Check whether this has already been stored for this PID instance, using
+  #       KEY: { pid => $pid, start_epoch => $start_epoch }
+  #       Return immediately if available
+  my @pids = @{$self->pids};
+  my $PMAP = $self->PMAP;
+  my %libpath_map;
+  
+  # Dynamic .so library analysis
+  my $so_regex =
+    qr{
+       ^ (?<base_addr>[0-9a-fA-F]+) \s+         # Hex starting address
+         \S+                        \s+         # size
+         \S+                        \s+         # perms
+         (?<libpath>/[^\n]+?\.so(?:[^\n]+|)) \n # Full path to .so* file
+      }smx;
+
+  # This relies on the fact that the first time a lib is listed in pmap output
+  # is the actual offset we're always looking for.
+  # NOTE: We don't need the base_addr anymore, so we simply ignore it now
+  foreach my $pid (@pids) { 
+    my $pmap_output = capture( "$PMAP $pid" );
+    while ($pmap_output =~ m{$so_regex}gsmx) {
+      $libpath_map{$+{libpath}}++;
+    }
+  } 
+
+  # Return the list of absolute library paths
+  return [ keys %libpath_map ];
+}
 
 1;
 
