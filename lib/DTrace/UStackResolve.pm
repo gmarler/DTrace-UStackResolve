@@ -5,10 +5,14 @@ use warnings;
 
 use Moose;
 use namespace::autoclean;
+use File::Basename;
+use IO::File;
 use IO::Async;
 use IO::Async::Loop;
+use IO::Async::FileStream;
 use Future;
 use CHI;
+use Tree::RB;
 
 # VERSION
 #
@@ -121,8 +125,19 @@ has 'symbol_table' => (
 );
 
 
+has 'direct_lookup_cache' => (
+  init_arg    => undef;
+  is          => 'rw',
+  isa         => 'Tree::RB',
+  default     => sub {
+    return Tree::RB->new;
+  },
+  lazy        => 1,
+);
+
 has 'symbol_table_cache' => (
   is          => 'ro',
+  isa         => 'CHI',
   builder     => '_build_symbol_table_cache',
   lazy        => 1,
 );
@@ -136,6 +151,10 @@ has 'user_stack_frames' => (
   isa         => 'Str',
   default     => '',
 );
+
+# TODO ATTRIBUTES:
+# - autoflush of resolved stack output - to be used for scripts that produce
+#   output slowly
 
 sub _build_symbol_table_cache {
   my ($self) = shift;
@@ -491,6 +510,155 @@ sub _replace_DTrace_keywords {
 
   return $script;
 }
+
+
+=method _resolve_symbol
+
+Given a line of output, resolve any symbol needing it.
+
+If the symbol cannot be resolved, annotate the line accordingly.
+
+If there is no symbol to be resolve, return the line unchanged.
+
+=cut
+
+sub _resolve_symbol {
+  my ($self,$line,$pid) = @_;
+
+  my $direct_symbol_cache = $self->direct_symbol_cache;
+
+  my ($symtab);
+  my $unresolved_re =
+    qr/^(?<keyfile>[^:]+):0x(?<offset>[\da-fA-F]+)/;
+
+  if ($line =~ m/^(?<keyfile>[^:]+):0x(?<offset>[\da-fA-F]+)$/) {
+    # Return direct lookup if available
+    if (my ($result) = $direct_symbol_cache->get($line)) {
+      return $result if defined($result);
+    }
+    my ($keyfile, $offset) = ($+{keyfile}, hex( $+{offset} ) );
+    #
+    # TODO: Use the PID to lookup the correct symbol table entries
+    #       in the symbol_table cache namespace
+    # NOTE: This may no longer be necessary, actually, except for
+    #       the executable itself.
+    #
+    ###   if (defined( $symtab = $symbol_table_cache->get($keyfile) )) {
+    ###     my $dec_offset = Math::BigInt->from_hex($offset);
+    ###     my $index = _binarySearch($dec_offset,$symtab);
+    ###     # NOTE: Use defined($index) because the $index can validly be '0'
+    ###     if (defined($index)) {
+    ###       my ($symtab_entry) = $symtab->[$index];
+    ###       # If we actually found the proper symbol table entry, make a pretty output
+    ###       # in the stack for it
+    ###       if ($symtab_entry) {
+    ###         my $funcname = $symtab_entry->[2];
+    ###         # my $funcsize = $symtab_entry->[1];
+    ###         # say "FUNCNAME: $funcname";
+    ###         my $resolved =
+    ###           sprintf("%s+0x%x",
+    ###                   $funcname,
+    ###                   $dec_offset - Math::BigInt->new($symtab_entry->[0]));
+    ###         # If we got here, we have something to store in the direct symbol
+    ###         # lookup cache
+    ###         $direct_symbol_cache->set($line,$resolved,'7 days');
+    ###         $line =~ s/^(?<keyfile>[^:]+):0x(?<offset>[\da-fA-F]+)$/${resolved}/;
+    ###       } else {
+    ###         die "WHAT THE HECK HAPPENED???";
+    ###       }
+    ###     } else {
+    ###       $line .= " [SYMBOL TABLE LOOKUP FAILED]";
+    ###     }
+    ###     #say "symtab lookup successful";
+    if ( defined( my $search_tree = $symtab_trees{$keyfile} ) ) {
+      my $symtab_entry = $search_tree->lookup( $offset, LULTEQ );
+      if (defined($symtab_entry)) {
+        if (($offset >= $symtab_entry->[0] ) and
+            ($offset <= ($symtab_entry->[0] + $symtab_entry->[1]) ) ) {
+          my $resolved =
+            sprintf("%s+0x%x",
+                    $symtab_entry->[2],
+                    $offset - $symtab_entry->[0]);
+          # If we got here, we have something to store in the direct symbol
+          # lookup cache
+          $direct_symbol_cache->set($line,$resolved,'7 days');
+          $line =~ s/^(?<keyfile>[^:]+):0x(?<offset>[\da-fA-F]+)$/${resolved}/;
+        } else {
+          $line .= " [SYMBOL TABLE LOOKUP FAILED]";
+        }
+      } else {
+        die "WHAT THE HECK HAPPENED???";
+      }
+    } else {
+      $line .= " [NO SYMBOL TABLE FOR $keyfile]";
+    }
+    return $line;
+  } else {
+    return $line;
+  }
+}
+
+=method start_stack-resolve
+
+Starts up the asynchronous reading of the output of the DTrace script, and the
+resolution of the user stack contained therein, and the output of this onto
+STDOUT.
+
+=cut
+
+sub start_stack_resolve {
+  my ($self) = shift;
+  my ($logfile) = $self->logfile;
+  my ($exec_basename) = basename($self->execname);
+
+  my $log_fh      = IO::File->new($logfile, "<");
+  #my $resolved_fh = IO::File->new("/bb/pm/data/$exec_basename-.resolved", ">>");
+  my $resolved_fh = IO::File->new;
+  $resolved_fh->fdopen(fileno(STDOUT),"w");
+
+  my $filestream = IO::Async::FileStream->new(
+    read_handle => $log_fh,
+    #autoflush   => 1,
+    #on_initial => sub {
+    #  my ( $self ) = @_;
+    #  #$self->seek_to_last( "\n" );
+    #  # Start at beginning of file
+    #  $self->seek( 0 );
+    #},
+ 
+    on_read => sub {
+      my ( $self, $buffref ) = @_;
+      # as we read the file to resolve symbols in, we often need to know
+      # what the current PID is for the data which follows to do an accurate
+      # symbol table lookup
+      my ($current_pid);
+ 
+      while( $$buffref =~ s/^(.*)\n// ) {
+        my $line = $1;
+        #say "Received a line $line";
+
+        if ($line =~ m/^PID:(?<pid>\d+)/) {
+          $current_pid = $+{pid};
+          # TODO: look this PID's entries up in at least the following
+          #       namespaces, generating them asynchronously if necessary:
+          # - ustack_resolve_pids
+          # - symbol_table
+          $resolved_fh->print( "$line\n" );
+          next;
+        }
+        $line = resolve_symbols( $line, $current_pid );
+        $resolved_fh->print( "$line\n" );
+      }
+
+      return 0;
+    },
+  );
+
+  $loop->add( $filestream );
+}
+
+
+
 
 1;
 
