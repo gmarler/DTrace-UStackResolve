@@ -128,10 +128,10 @@ has 'symbol_table_cache' => (
 );
 
 #
-# Allow user stack depth to be chosen, but default to nothing, since it's very
-# likely we'll want the full user stack most of the time.
+# Allow user stack frame depth to be chosen, but default to nothing, since
+# it's very likely we'll want the full user stack most of the time.
 #
-has 'user_stack_depth' => (
+has 'user_stack_frames' => (
   is          => 'ro',
   isa         => 'Str',
   default     => '',
@@ -325,7 +325,172 @@ sub _build_symbol_table {
 }
 
 
+=head1 BUILT IN DTrace SCRIPTS
 
+These are private methods, which are used to select what kind of DTrace script t
+
+=method _ustack_dtrace
+
+The most basic DTrace, which shows the following data every second:
+
+=for :list
+* Timestamp
+* PID
+* kernel stack (resolved)
+* Unresolved user stack
+* Occurrence count for the above tuple for that time interval
+
+The unresolved user stacks will be resolved by this module.
+
+=cut
+
+sub _ustack_dtrace {
+  my ($self) = shift;
+
+    my $script = <<'END';
+#pragma D option noresolve
+#pragma D option quiet
+#pragma D option ustackframes=100
+
+profile-197Hz
+/ execname == "__EXECNAME__" /
+{
+  @s[pid,tid,stack(),ustack(__USTACK_FRAMES__)] = count();
+}
+
+tick-1sec
+{
+  printf("\n%Y\n",walltimestamp);
+
+  /* We prefix with PID:<pid> so that we can determine which PID we're working
+   * on, on the off chance that individual PIDs have set LD_LIBRARY_PATH or
+   * similar, such that some shared libraries differ, even though the
+   * execpath (fully qualified path to an executable), execname (basename)
+   * of the same executable), and SHA-1 of the executable are all
+   * identical between PIDs.
+   */
+  printa("PID:%-5d %-3d %k %k %@12u\n",@s);
+
+  trunc(@s);
+}
+
+END
+
+    $script = $self->_replace_DTrace_keywords($script);
+    return $script;
+}
+
+=method _whatfor_DTrace
+
+This DTrace provides kernel / user stack as a thread goes off CPU (goes to
+sleep).
+
+It provides, per second:
+
+=for :list
+* Timestamp
+* PID
+* TID (Thread ID)
+* Reason thread went off CPU
+* kernel stack (resolved) as thread went off CPU
+* Unresolved user stack as thread went off CPU
+* Quantized histogram indicating how long the thread stayed off CPU
+
+=cut
+
+my _whatfor_DTrace {
+  my ($self, $script) = @_;
+
+  my $script = <<'WHATFOR_END';
+#pragma D option noresolve
+#pragma D option quiet
+#pragma D option ustackframes=100
+
+sched:::off-cpu
+/ execname == "__EXECNAME__" &&
+  curlwpsinfo &&
+  curlwpsinfo->pr_state == SSLEEP /
+{
+  /*
+   * We're sleeping.  Track our sobj type.
+   */
+  self->sobj = curlwpsinfo->pr_stype;
+  self->bedtime = timestamp;
+}
+
+sched:::off-cpu
+/ execname == "__EXECNAME__" &&
+  curlwpsinfo &&
+  curlwpsinfo->pr_state == SRUN /
+{
+  self->bedtime = timestamp;
+}
+
+sched:::on-cpu
+/self->bedtime && !self->sobj/
+{
+  @["preempted",pid,tid] = quantize(timestamp - self->bedtime);
+  @sdata[pid,tid,stack(),ustack(__USTACK_FRAMES__)] = count();
+  self->bedtime = 0; 
+}
+
+sched:::on-cpu
+/self->sobj/
+{
+  @[self->sobj == SOBJ_MUTEX ? "kernel-level lock" :
+    self->sobj == SOBJ_RWLOCK ? "rwlock" :
+    self->sobj == SOBJ_CV ? "condition variable" :
+    self->sobj == SOBJ_SEMA ? "semaphore" :
+    self->sobj == SOBJ_USER ? "user-level lock" :
+    self->sobj == SOBJ_USER_PI ? "user-level prio-inheriting lock" :
+    self->sobj == SOBJ_SHUTTLE ? "shuttle" : "unknown",
+    pid,tid] = quantize(timestamp - self->bedtime);
+  @sdata[pid,tid,stack(),ustack(__USTACK_FRAMES__)] = count();
+
+  self->sobj = 0; 
+  self->bedtime = 0; 
+}
+
+tick-1sec
+{
+  printf("\n%Y\n",walltimestamp);
+
+  printf("%-32s %5s %-3s %-12s\n","SOBJ OR PREEMPTED","PID","TID","LATENCY(ns)");
+  printa("%-32s %5d %-3d %-@12u\n",@);
+
+  trunc(@sdata,32);
+  /* printa("PID:%-5d %-3d %k %k %@12u\n",@sdata); */
+  printa("%5d %-3d %k %k %@12u\n",@sdata);
+
+  trunc(@);
+  trunc(@sdata);
+}
+
+WHATFOR_END
+
+    $script = $self->_replace_DTrace_keywords($script);
+    return $script;
+}
+
+
+
+=method _replace_DTrace_keywords
+
+This method takes a DTrace script, and replaces the keywords we recognize.
+
+=cut
+
+sub _replace_DTrace_keywords {
+  my ($self,$script) = @_;
+
+  my ($execname,$ustack_frames) =
+   ($self->execname, $self->user_stack_frames);
+
+  $script =~ s/__EXECNAME__/$execname/gsmx;
+  $script =~ s/__USTACK_FRAMES__/$ustack_frames/gsmx;
+
+  return $script;
+}
 
 1;
 
