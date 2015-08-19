@@ -127,7 +127,15 @@ has 'symbol_table_cache' => (
   lazy        => 1,
 );
 
-
+#
+# Allow user stack depth to be chosen, but default to nothing, since it's very
+# likely we'll want the full user stack most of the time.
+#
+has 'user_stack_depth' => (
+  is          => 'ro',
+  isa         => 'Str',
+  default     => '',
+);
 
 sub _build_symbol_table_cache {
   my ($self) = shift;
@@ -246,10 +254,11 @@ sub _build_dynamic_library_paths {
 # TODO: Turn this from a normal builder into a Future
 sub _build_symbol_table {
   my ($self) = shift;
+  # TODO: fix this, as we'll need to get these from other attributes instead
+  my ($exec_or_lib_path, $exec_or_lib_sha1) = @_;
 
   my ($NM) = $self->NM;
 
-  my ($exec_or_lib_path, $exec_or_lib_sha1) = @_;
 
   # $start_offset is the offset of the _START_ symbol in a library or exec
   my ($symtab_aref,$symcount,$_start_offset);
