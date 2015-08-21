@@ -127,7 +127,6 @@ has 'execname_mtime' => (
 has 'pids' => (
   is          => 'rw',
   isa         => 'ArrayRef[Int]',
-  default     => sub { [ ]; },
   builder     => '_build_pids',
   lazy        => 1,
 );
