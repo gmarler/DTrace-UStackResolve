@@ -145,14 +145,14 @@ has 'symbol_table' => (
   predicate   => '_has_symbol_table',
 );
 
-
+#
+# This should get built at the end of building/loading the symbol_table_cache
+#
 has 'direct_lookup_cache' => (
   init_arg    => undef,
   is          => 'rw',
-  isa         => 'Tree::RB',
-  default     => sub {
-    return Tree::RB->new;
-  },
+  isa         => 'HashRef[Tree::RB]',
+  default     => sub { return [ ]; },
   lazy        => 1,
 );
 
@@ -437,7 +437,7 @@ It provides, per second:
 =cut
 
 sub _whatfor_DTrace {
-  my ($self, $script) = @_;
+  my ($self) = @_;
 
   my $script = <<'WHATFOR_END';
 #pragma D option noresolve
@@ -547,7 +547,6 @@ sub _start_dtrace_capture {
   my ($script) = build_dtrace_script($execname);
   my ($dscript_fh) = build_dtrace_script_fh( $script );
   my ($dscript_filename) = $dscript_fh->filename;
-  $dscript_fh_holder = $dscript_fh;
 
   my $cmd = "$DTRACE -s $dscript_filename";
 
@@ -617,6 +616,8 @@ sub _resolve_symbol {
   my $direct_symbol_cache = $self->direct_symbol_cache;
 
   my ($symtab);
+  my (%symtab_trees) = %{$self->direct_lookup_cache};
+
   my $unresolved_re =
     qr/^(?<keyfile>[^:]+):0x(?<offset>[\da-fA-F]+)/;
 
@@ -761,7 +762,7 @@ sub pid_dynamic_library_paths {
   # TODO: Check whether this has already been stored for this PID instance, using
   #       KEY: { pid => $pid, start_epoch => $start_epoch }
   #       Return immediately if available
-  my @pids = @{$self->pids};
+  my @pids = ( $pid );
   my $PMAP = $self->PMAP;
   my %libpath_map;
   
