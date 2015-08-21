@@ -33,7 +33,7 @@ sub test_constants {
   my @constants = qw( PMAP NM PGREP DTRACE );
 
   can_ok( $test->class_name, @constants );
-  my $obj = $test->class_name->new;
+  my $obj = $test->class_name->new( execname => '/usr/sbin/nscd';
 
   #diag $obj->dump;
 
@@ -54,6 +54,6 @@ sub test_constants {
 sub test_loop {
   my ($test) = shift;
 
-  my $obj = $test->class_name->new;
+  my $obj = $test->class_name->new( execname => '/usr/sbin/nscd' );
   isa_ok( $obj->loop, 'IO::Async::Loop' );
 }
