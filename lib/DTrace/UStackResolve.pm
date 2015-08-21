@@ -5,6 +5,7 @@ use strict;
 use warnings;
 
 use Moose;
+use MooseX::ClassAttribute;
 use namespace::autoclean;
 use File::Basename;
 use IO::File;
@@ -13,7 +14,12 @@ use IO::Async::Loop;
 use IO::Async::FileStream;
 use Future;
 use CHI;
-use Tree::RB;
+use Tree::RB              qw( LULTEQ );
+
+#
+# TODO: This module assumes use of a Perl with 64-bit ints.  Check for this, or
+#       use Math::BigInt if it's missing.
+#
 
 # VERSION
 #
@@ -43,29 +49,29 @@ The purpose of this module is to perform that resolution.
 
 =cut
 
-# Constants
-has 'PMAP' => (
+# Class Attribute Constants
+class_has 'PMAP' => (
   init_arg    => undef,
   is          => 'ro',
   isa         => 'Str',
   default     => "/bin/pmap",
 );
 
-has 'NM' => (
+class_has 'NM' => (
   init_arg    => undef,
   is          => 'ro',
   isa         => 'Str',
   default     => "/usr/ccs/bin/nm",
 );
 
-has 'PGREP' => (
+class_has 'PGREP' => (
   init_arg    => undef,
   is          => 'ro',
   isa         => 'Str',
   default     => "/bin/pgrep",
 );
 
-has 'DTRACE' => (
+class_has 'DTRACE' => (
   init_arg    => undef,
   is          => 'ro',
   isa         => 'Str',
@@ -763,7 +769,7 @@ sub pid_dynamic_library_paths {
   #       KEY: { pid => $pid, start_epoch => $start_epoch }
   #       Return immediately if available
   my @pids = ( $pid );
-  my $PMAP = $self->PMAP;
+  my $PMAP = __PACKAGE__->PMAP;
   my %libpath_map;
   
   # Dynamic .so library analysis
