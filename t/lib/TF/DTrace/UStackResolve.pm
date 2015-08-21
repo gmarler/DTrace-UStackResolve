@@ -42,7 +42,7 @@ sub test_constants {
       "$constant constant is defined" );
   }
 
-  if ($^O eq "SunOS") {
+  if ($^O eq "solaris") {
     foreach my $constant (@constants) {
       is( -e $obj->$constant, 1, "Location for $constant exists" );
     }
