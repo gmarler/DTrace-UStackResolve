@@ -33,7 +33,7 @@ sub test_constants {
   my @constants = qw( PMAP NM PGREP DTRACE );
 
   can_ok( $test->class_name, @constants );
-  my $obj = $test->class_name->new( execname => '/usr/sbin/nscd';
+  my $obj = $test->class_name->new( execname => '/usr/sbin/nscd' );
 
   #diag $obj->dump;
 
