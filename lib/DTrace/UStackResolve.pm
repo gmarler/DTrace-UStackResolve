@@ -75,7 +75,7 @@ has 'DTRACE' => (
 has 'loop' => (
   is          => 'ro',
   isa         => 'IO::Async::Loop',
-  default     => sub { IO::Async::Loop->new; },
+  builder     => '_build_loop',
 );
 
 =method new()
@@ -135,6 +135,7 @@ has 'dynamic_library_paths' => (
 );
 
 has 'symbol_table' => (
+  init_arg    => undef,   # don't allow specifying in the constructor
   is          => 'rw',
   isa         => 'HashRef[Str]',
   builder     => '_build_symbol_table',
@@ -162,13 +163,13 @@ has 'symbol_table_cache' => (
 );
 
 #
-# Allow user stack frame depth to be chosen, but default to nothing, since
+# Allow user stack frame depth to be chosen, but default to 100, since
 # it's very likely we'll want the full user stack most of the time.
 #
 has 'user_stack_frames' => (
   is          => 'ro',
-  isa         => 'Str',
-  default     => '',
+  isa         => 'Num',
+  default     => 100,
 );
 
 has 'autoflush_dtrace_output' => (
@@ -237,6 +238,31 @@ rather than a live PID.
 
 =cut
 
+sub _build_loop {
+  my ($self) = shift;
+
+  my $loop = IO::Async::Loop->new;
+
+  # my $sha1_func = IO::Async::Function->new(
+  #   code        => \&file_sha1_digest,
+  # );
+
+  my $pmap_func = IO::Async::Function->new(
+    code        => \&pid_dynamic_library_paths
+  );
+
+  #my $gen_symtab_func = IO::Async::Function->new(
+  #  code        => \&gen_symbol_table
+  #);
+  
+
+  # $loop->add( $sha1_func );
+  $loop->add( $pmap_func );
+  #$loop->add( $gen_symtab_func );
+
+  return $loop;
+}
+
 sub _build_pids {
   my ($self) = shift;
 
@@ -251,40 +277,6 @@ sub _build_pids {
   return \@pids;
 }
 
-sub _build_dynamic_library_paths {
-  my ($self) = shift;
-
-  # NOTE: It's likely we don't need to bother caching this, as it's really
-  #       quick.
-  # TODO: Check whether this has already been stored for this PID instance, using
-  #       KEY: { pid => $pid, start_epoch => $start_epoch }
-  #       Return immediately if available
-  my @pids = @{$self->pids};
-  my $PMAP = $self->PMAP;
-  my %libpath_map;
-  
-  # Dynamic .so library analysis
-  my $so_regex =
-    qr{
-       ^ (?<base_addr>[0-9a-fA-F]+) \s+         # Hex starting address
-         \S+                        \s+         # size
-         \S+                        \s+         # perms
-         (?<libpath>/[^\n]+?\.so(?:[^\n]+|)) \n # Full path to .so* file
-      }smx;
-
-  # This relies on the fact that the first time a lib is listed in pmap output
-  # is the actual offset we're always looking for.
-  # NOTE: We don't need the base_addr anymore, so we simply ignore it now
-  foreach my $pid (@pids) { 
-    my $pmap_output = capture( "$PMAP $pid" );
-    while ($pmap_output =~ m{$so_regex}gsmx) {
-      $libpath_map{$+{libpath}}++;
-    }
-  } 
-
-  # Return the list of absolute library paths
-  return [ keys %libpath_map ];
-}
 
 # Given a path to a dynamic/shared library or an executable,
 # generate the symbol table.
@@ -756,7 +748,43 @@ sub start_stack_resolve {
   $loop->add( $filestream );
 }
 
+#
+# UTILITY FUNCTIONS - NOT to be called as object methods, but as Future loops
+#
+sub pid_dynamic_library_paths {
+  my ($pid) = shift;
 
+  # NOTE: It's likely we don't need to bother caching this, as it's really
+  #       quick.
+  # TODO: Check whether this has already been stored for this PID instance, using
+  #       KEY: { pid => $pid, start_epoch => $start_epoch }
+  #       Return immediately if available
+  my @pids = @{$self->pids};
+  my $PMAP = $self->PMAP;
+  my %libpath_map;
+  
+  # Dynamic .so library analysis
+  my $so_regex =
+    qr{
+       ^ (?<base_addr>[0-9a-fA-F]+) \s+         # Hex starting address
+         \S+                        \s+         # size
+         \S+                        \s+         # perms
+         (?<libpath>/[^\n]+?\.so(?:[^\n]+|)) \n # Full path to .so* file
+      }smx;
+
+  # This relies on the fact that the first time a lib is listed in pmap output
+  # is the actual offset we're always looking for.
+  # NOTE: We don't need the base_addr anymore, so we simply ignore it now
+  foreach my $pid (@pids) { 
+    my $pmap_output = capture( "$PMAP $pid" );
+    while ($pmap_output =~ m{$so_regex}gsmx) {
+      $libpath_map{$+{libpath}}++;
+    }
+  } 
+
+  # Return the list of absolute library paths
+  return [ keys %libpath_map ];
+}
 
 
 1;
