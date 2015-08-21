@@ -1,5 +1,6 @@
 package DTrace::UStackResolve;
 
+use v5.22.0;
 use strict;
 use warnings;
 
