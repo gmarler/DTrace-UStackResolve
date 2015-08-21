@@ -12,6 +12,7 @@ use IO::File;
 use IO::Async;
 use IO::Async::Loop;
 use IO::Async::FileStream;
+use IO::Async::Function;
 use Future;
 use CHI;
 use Tree::RB              qw( LULTEQ );
