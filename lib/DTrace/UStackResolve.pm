@@ -78,6 +78,25 @@ has 'loop' => (
   default     => sub { IO::Async::Loop->new; },
 );
 
+=method new()
+
+The constructor takes the following attributed:
+
+=for :list
+* execname:                Full path to executable you want to get user stacks
+                           for.
+                           Required, no default.
+
+* user_stack_frames:       The depth of the user stacks you want to receive
+                           in the output.
+                           Default: 100
+
+* autoflush_dtrace_output: Whether to autoflush the DTrace output.
+                           Defaults to 0 (false).  Good to enable for
+                           scripts you expect slow/intermittent output from.
+
+=cut
+
 has 'execname' => (
   is          => 'ro',
   isa         => 'Str',
@@ -150,6 +169,12 @@ has 'user_stack_frames' => (
   is          => 'ro',
   isa         => 'Str',
   default     => '',
+);
+
+has 'autoflush_dtrace_output' => (
+  is          => 'ro',
+  isa         => 'Num',
+  default     => 0,
 );
 
 # TODO ATTRIBUTES:
@@ -417,7 +442,7 @@ It provides, per second:
 
 =cut
 
-my _whatfor_DTrace {
+sub _whatfor_DTrace {
   my ($self, $script) = @_;
 
   my $script = <<'WHATFOR_END';
@@ -511,6 +536,76 @@ sub _replace_DTrace_keywords {
   return $script;
 }
 
+=method _start_dtrace_capture
+
+This private method starts the DTrace script that has been chosen, and streams
+the unresolved output to a file.
+
+=cut
+
+sub _start_dtrace_capture {
+  my ($self) = shift;
+
+  my ($execname) = $self->execname;
+  my ($DTRACE)   = $self->DTRACE;
+  my ($loop)     = $self->loop;
+
+  my ($script) = build_dtrace_script($execname);
+  my ($dscript_fh) = build_dtrace_script_fh( $script );
+  my ($dscript_filename) = $dscript_fh->filename;
+  $dscript_fh_holder = $dscript_fh;
+
+  my $cmd = "$DTRACE -s $dscript_filename";
+
+  say "Going to execute: $cmd";
+
+  my $dscript_output_fh = IO::File->new("/bb/pm/data/dscript.out", ">")
+    or die "Unable to open /bb/pm/data/dscript.out for writing: $!";;
+  my $dscript_stderr_fh = IO::File->new("/bb/pm/data/dscript.err", ">")
+    or die "Unable to open /bb/pm/data/dscript.err for writing: $!";;
+
+  my $dtrace_process =
+    IO::Async::Process->new(
+      command => $cmd,
+      stdout  => {
+        on_read => sub {
+          my ( $stream, $buffref ) = @_;
+          #while ( $$buffref =~ s/^(.*)\n// ) {
+          while ( length( $$buffref ) ) {
+            my $data = substr($$buffref,0, 1024*1024 ,'');
+            $dscript_output_fh->print( $data );
+          }
+ 
+          return 0;
+        },
+      },
+      stderr  => {
+        on_read => sub {
+          my ( $stream, $buffref ) = @_;
+          while ( $$buffref =~ s/^(.*)\n// ) {
+            $dscript_stderr_fh->print( $1 . "\n" );
+          }
+ 
+          return 0;
+        },
+      },
+      on_finish => sub {
+        my ($proc_obj,$exitcode) = @_;
+        say "DTrace SCRIPT TERMINATED WITH EXIT CODE: $exitcode!";
+        $dscript_output_fh->close;
+        $loop->stop;
+        exit(1);
+      },
+      # on_exception => sub {
+      #   $dscript_output_fh->close;
+      #   say "DTrace Script ABORTED!";
+      #   $loop->stop;
+      #   exit(1);
+      # },
+    );
+
+  $loop->add( $dtrace_process );
+}
 
 =method _resolve_symbol
 
@@ -608,17 +703,21 @@ STDOUT.
 
 sub start_stack_resolve {
   my ($self) = shift;
-  my ($logfile) = $self->logfile;
-  my ($exec_basename) = basename($self->execname);
 
-  my $log_fh      = IO::File->new($logfile, "<");
-  #my $resolved_fh = IO::File->new("/bb/pm/data/$exec_basename-.resolved", ">>");
-  my $resolved_fh = IO::File->new;
+  my ($dtrace_outfile) = $self->dtrace_output_file;
+  my ($exec_basename)  = basename($self->execname);
+  my ($loop)           = $self->loop;
+
+  my $dtrace_output_fh  = IO::File->new($dtrace_outfile, "<");
+  my $resolved_fh       = IO::File->new;
   $resolved_fh->fdopen(fileno(STDOUT),"w");
 
+  # TODO: May want to think about changing this from a FileStream to just a
+  #       Stream.  Keeping the FileStream for the present just for ease of
+  #       debugging in the case where a stack resolution fails.
   my $filestream = IO::Async::FileStream->new(
-    read_handle => $log_fh,
-    #autoflush   => 1,
+    read_handle => $dtrace_output_fh,
+    autoflush   => $self->autoflush_dtrace_output,
     #on_initial => sub {
     #  my ( $self ) = @_;
     #  #$self->seek_to_last( "\n" );
