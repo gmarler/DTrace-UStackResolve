@@ -267,6 +267,7 @@ sub _build_loop {
 sub _build_pids {
   my ($self) = shift;
 
+  my ($PGREP) = $self->PGREP;
   my $execname = $self->execname; 
   my @output = capture( "$PGREP -lxf '^$execname.+'" );
   chomp(@output);
