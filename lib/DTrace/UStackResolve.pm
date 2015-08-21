@@ -147,7 +147,7 @@ has 'symbol_table' => (
 
 
 has 'direct_lookup_cache' => (
-  init_arg    => undef;
+  init_arg    => undef,
   is          => 'rw',
   isa         => 'Tree::RB',
   default     => sub {
