@@ -17,6 +17,7 @@ use IO::Async::Function;
 use Future;
 use CHI;
 use Tree::RB              qw( LULTEQ );
+use IPC::System::Simple   qw( capture );
 
 #
 # TODO: This module assumes use of a Perl with 64-bit ints.  Check for this, or
