@@ -110,7 +110,7 @@ sub test_user_stack_frames {
 sub test_pids {
   my ($test) = shift;
 
-  my ($obj);
+  my ($obj, $pids_aref);
 
   $obj = $test->class_name->new( execname => $test->{execname_attribute} );
 
