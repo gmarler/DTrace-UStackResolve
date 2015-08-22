@@ -65,15 +65,15 @@ sub test_autoflush_dtrace_output {
   my ($obj);
   $obj = $test->class_name->new( execname => $test->{execname_attribute},
                                  autoflush_dtrace_output => 0 );
-  is_ok( $obj->autoflush_dtrace_output, '==', 0,
+  cmp_ok( $obj->autoflush_dtrace_output, '==', 0,
          'explicit autoflush_dtrace_output setting to 0' );
 
   $obj = $test->class_name->new( execname => $test->{execname_attribute} );
-  is_ok( $obj->autoflush_dtrace_output, '==', 0,
+  cmp_ok( $obj->autoflush_dtrace_output, '==', 0,
          'implicit default autoflush_dtrace_output setting to 0' );
   $obj = $test->class_name->new( execname => $test->{execname_attribute},
                                  autoflush_dtrace_output => 1 );
-  is_ok( $obj->autoflush_dtrace_output, '==', 1,
+  cmp_ok( $obj->autoflush_dtrace_output, '==', 1,
          'explicit autoflush_dtrace_output setting to 1' );
   # TODO: Actually test whether the autoflush *happens*
 }
