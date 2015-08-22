@@ -304,7 +304,7 @@ sub _build_pids {
                   $+{pid}; } @output;
     #say Dumper( \@pids );
   } else {
-    die "pgrep returned $EXITvAL, which is a fatal exception for us";
+    die "pgrep returned $EXITVAL, which is a fatal exception for us";
   }
 
   return \@pids;
