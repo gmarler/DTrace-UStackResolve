@@ -118,7 +118,7 @@ sub test_pids {
 
   $pids_aref = $obj->pids;
 
-  cmp_deeply( @$pids_aref, bag( re(qr/^\d+$/) ) );
+  cmp_deeply( $pids_aref, bag( re(qr/^\d+$/) ) );
 }
 
 1;
