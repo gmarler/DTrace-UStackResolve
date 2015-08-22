@@ -5,6 +5,7 @@ use strict;
 use warnings;
 
 use Moose;
+use Moose::Util::TypeConstraints;
 use MooseX::ClassAttribute;
 use namespace::autoclean;
 use File::Basename;
@@ -49,6 +50,12 @@ The purpose of this module is to perform that resolution.
 =head1 ATTRIBUTES
 
 =cut
+
+# Local Type Constraints
+
+subtype 'UStackDepthRange',
+  as 'Int',
+  where { $_ >= 1 && $_ <= 100 };
 
 # Class Attribute Constants
 class_has 'PMAP' => (
@@ -175,7 +182,7 @@ has 'symbol_table_cache' => (
 #
 has 'user_stack_frames' => (
   is          => 'ro',
-  isa         => 'Num',
+  isa         => 'UStackDepthRange',
   default     => 100,
 );
 
