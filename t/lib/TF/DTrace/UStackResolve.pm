@@ -77,3 +77,24 @@ sub test_autoflush_dtrace_output {
          'explicit autoflush_dtrace_output setting to 1' );
   # TODO: Actually test whether the autoflush *happens*
 }
+
+
+sub test_user_stack_frames {
+  my ($test) = shift;
+
+  my ($obj);
+
+  $obj = $test->class_name->new( execname => $test->{execname_attribute} );
+  cmp_ok( $obj->user_stack_frames , '==', 100,
+          'implict default user_stack_frames setting to 100' );
+
+
+  $obj = $test->class_name->new( execname => $test->{execname_attribute},
+                                 user_stack_frames => 1, );
+  cmp_ok( $obj->user_stack_frames , '==', 1,
+          'explicit user_stack_frames setting to 1' );
+
+  # TODO: Set the possible range to be 1 to 100, and test the limits here
+}
+
+1;
