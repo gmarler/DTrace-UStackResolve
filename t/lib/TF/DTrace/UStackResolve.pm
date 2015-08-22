@@ -107,4 +107,14 @@ sub test_user_stack_frames {
            'above user_stack_frames range should die' );
 }
 
+sub test_pids {
+  my ($test) = shift;
+
+  my ($obj);
+
+  $obj = $test->class_name->new( execname => $test->{execname_attribute} );
+
+  $pids_aref = $obj->pids;
+}
+
 1;

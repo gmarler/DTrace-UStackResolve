@@ -140,6 +140,7 @@ has 'pids' => (
 );
 
 has 'dynamic_library_paths' => (
+  init_arg    => undef,   # don't allow specifying in the constructor
   is          => 'rw',
   isa         => 'ArrayRef[Str]',
   builder     => '_build_dynamic_library_paths',
@@ -162,14 +163,15 @@ has 'symbol_table' => (
 # This should get built at the end of building/loading the symbol_table_cache
 #
 has 'direct_lookup_cache' => (
-  init_arg    => undef,
+  init_arg    => undef,   # don't allow specifying in the constructor
   is          => 'rw',
   isa         => 'HashRef[Tree::RB]',
-  default     => sub { return [ ]; },
+  default     => sub { return { }; },
   lazy        => 1,
 );
 
 has 'symbol_table_cache' => (
+  init_arg    => undef,   # don't allow specifying in the constructor
   is          => 'ro',
   isa         => 'CHI',
   builder     => '_build_symbol_table_cache',
