@@ -19,7 +19,7 @@ sub test_startup {
   $test->next::method;
 
   # ... Anything you need to do...
-  $test{execname_attribute} = '/usr/sbin/dtrace';
+  $test->{execname_attribute} = '/usr/sbin/dtrace';
 }
 
 sub test_constructor {
@@ -34,7 +34,7 @@ sub test_constants {
   my @constants = qw( PMAP NM PGREP DTRACE );
 
   can_ok( $test->class_name, @constants );
-  my $obj = $test->class_name->new( execname => $test{execname_attribute} );
+  my $obj = $test->class_name->new( execname => $test->{execname_attribute} );
 
   #diag $obj->dump;
 
@@ -55,6 +55,19 @@ sub test_constants {
 sub test_loop {
   my ($test) = shift;
 
-  my $obj = $test->class_name->new( execname => $test{execname_attribute} );
+  my $obj = $test->class_name->new( execname => $test->{execname_attribute} );
   isa_ok( $obj->loop, 'IO::Async::Loop' );
+}
+
+sub test_autoflush {
+  my ($test) = shift;
+
+  my $obj = $test->class_name->new( execname => $test->{execname_attribute},
+                                    autoflush => 0 );
+  is_ok( $obj->autoflush, '==', 0, 'explicit autoflush setting to 0' );
+  $obj = $test->class_name->new( execname => $test->{execname_attribute} );
+  is_ok( $obj->autoflush, '==', 0, 'implicit default autoflush setting to 0' );
+  $obj = $test->class_name->new( execname => $test->{execname_attribute},
+                                 autoflush => 1 );
+  is_ok( $obj->autoflush, '==', 1, 'explicit autoflush setting to 1' );
 }
