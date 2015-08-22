@@ -19,6 +19,7 @@ sub test_startup {
   $test->next::method;
 
   # ... Anything you need to do...
+  $test{execname_attribute} = '/usr/sbin/dtrace';
 }
 
 sub test_constructor {
@@ -33,7 +34,7 @@ sub test_constants {
   my @constants = qw( PMAP NM PGREP DTRACE );
 
   can_ok( $test->class_name, @constants );
-  my $obj = $test->class_name->new( execname => '/usr/sbin/nscd' );
+  my $obj = $test->class_name->new( execname => $test{execname_attribute} );
 
   #diag $obj->dump;
 
@@ -54,6 +55,6 @@ sub test_constants {
 sub test_loop {
   my ($test) = shift;
 
-  my $obj = $test->class_name->new( execname => '/usr/sbin/nscd' );
+  my $obj = $test->class_name->new( execname => $test{execname_attribute} );
   isa_ok( $obj->loop, 'IO::Async::Loop' );
 }
