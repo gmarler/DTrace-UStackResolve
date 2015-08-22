@@ -117,6 +117,8 @@ sub test_pids {
   $obj = $test->class_name->new( execname => $test->{execname_attribute} );
 
   $pids_aref = $obj->pids;
+
+  cmp_deeply( @$pids_aref, bag( re(qr/^\d+$/) ) );
 }
 
 1;
