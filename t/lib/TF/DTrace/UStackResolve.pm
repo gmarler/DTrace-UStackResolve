@@ -94,7 +94,17 @@ sub test_user_stack_frames {
   cmp_ok( $obj->user_stack_frames , '==', 1,
           'explicit user_stack_frames setting to 1' );
 
-  # TODO: Set the possible range to be 1 to 100, and test the limits here
+  # Make sure selecting user_stack_frames outside the range dies
+  dies_ok( sub {
+             $test->class_name->new( execname => $test->{execname_attribute},
+                                     user_stack_frames => 0 );
+           },
+           'below user_stack_frames range should die' );
+  dies_ok( sub {
+             $test->class_name->new( execname => $test->{execname_attribute},
+                                     user_stack_frames => 101 );
+           },
+           'above user_stack_frames range should die' );
 }
 
 1;
