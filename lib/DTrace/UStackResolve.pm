@@ -17,7 +17,8 @@ use IO::Async::Function;
 use Future;
 use CHI;
 use Tree::RB              qw( LULTEQ );
-use IPC::System::Simple   qw( capture );
+use IPC::System::Simple   qw( capture $EXITVAL EXIT_ANY );
+use Carp;
 
 #
 # TODO: This module assumes use of a Perl with 64-bit ints.  Check for this, or
@@ -283,15 +284,29 @@ sub _build_loop {
 sub _build_pids {
   my ($self) = shift;
 
+  my (@pids);
   my ($PGREP) = $self->PGREP;
   my $execname = $self->execname; 
-  my @output = capture( "$PGREP -lxf '^$execname.+'" );
-  chomp(@output);
-  say "PIDS:";
-  say join("\n",@output);
-  #say Dumper( \@output );
-  my @pids = map { my $line = $_; $line =~ m/^(?:\s+)?(?<pid>\d+)\s+/; $+{pid}; } @output;
-  #say Dumper( \@pids );
+  my @output = capture( EXIT_ANY, "$PGREP -lxf '^$execname.+?'" );
+
+  if ($EXITVAL == 1) {
+    carp "No PIDs were found that match $execname !";
+    # TODO: should this croak or what?
+  } elsif ($EXITVAL == 0) {
+
+    chomp(@output);
+  
+    say "PIDS:";
+    say join("\n",@output);
+    #say Dumper( \@output );
+    @pids = map { my $line = $_;
+                  $line =~ m/^(?:\s+)?(?<pid>\d+)\s+/;
+                  $+{pid}; } @output;
+    #say Dumper( \@pids );
+  } else {
+    die "pgrep returned $EXITvAL, which is a fatal exception for us";
+  }
+
   return \@pids;
 }
 

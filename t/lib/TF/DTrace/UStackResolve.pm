@@ -19,7 +19,9 @@ sub test_startup {
   $test->next::method;
 
   # ... Anything you need to do...
-  $test->{execname_attribute} = '/usr/sbin/dtrace';
+
+  # Picking an execname that EXTREMELY likely to be running on any Solaris
+  $test->{execname_attribute} = '/usr/sbin/nscd';
 }
 
 sub test_constructor {
