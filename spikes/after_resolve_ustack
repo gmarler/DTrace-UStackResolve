@@ -1,0 +1,341 @@
+#!/usr/perl5/5.22.0/bin/perl
+
+use strict;
+use warnings;
+
+use v5.22.0;
+
+use Log::Log4perl         qw( :easy );
+use Log::Any::Adapter     qw( Stdout );
+use Log::Any              qw( $log );
+use File::stat;
+use File::Basename;
+use Digest::SHA1;
+use Future;
+use Future::Utils         qw( fmap );
+use List::Util            qw( first );
+use List::MoreUtils       qw( uniq );
+use IO::Async::Loop;
+use IO::Async::Function;
+use IO::Async::FileStream;
+use IO::Async::Process;
+use Getopt::Long;
+use Digest::SHA1;
+use Data::Dumper;
+use IPC::System::Simple   qw( capture );
+# Needs Exporter::ConditionalSubs
+use Assert::Conditional  qw( :scalar );
+use IO::File;
+use File::Temp            qw( );
+use Math::BigInt          qw( );
+use Carp;
+use CHI;
+use Tree::RB              qw( LULTEQ );
+
+use Readonly;
+
+Readonly::Scalar my $pmap   => "/bin/pmap";
+Readonly::Scalar my $pgrep  => "/bin/pgrep";
+Readonly::Scalar my $nm     => "/usr/ccs/bin/nm";
+Readonly::Scalar my $DTRACE => "/sbin/dtrace";
+
+Log::Log4perl->easy_init($INFO);
+Log::Any::Adapter->set('Log4perl');
+
+my ($execname,$dtrace_output,$exec_nm_output,$execpath);
+
+GetOptions("execname=s"      => \$execname,
+           "exec_nm=s"       => \$exec_nm_output,
+           "dtrace_output=s" => \$dtrace_output,
+          ) or
+  die("Error in command line arguments");
+
+unless (defined $execname) {
+  die "--execname argument required";
+}
+$execpath = $execname;
+unless (defined $exec_nm_output) {
+  die "--exec_nm output file argument required";
+}
+unless (defined $dtrace_output) {
+  die "--dtrace_output file argument required";
+}
+
+my @execname_pids;
+
+my (%direct_symbol_datastore);
+
+CHI->stats->enable();
+
+my $direct_symbol_cache =
+  CHI->new( driver       => 'BerkeleyDB',
+            cache_size   => '1024m',
+            root_dir     => '/tmp/symbol_tables',
+            namespace    => 'direct_symbol',
+            #datastore    => \%direct_symbol_datastore,
+            global       => 0,
+            on_get_error => 'warn',
+            on_set_error => 'warn',
+            l1_cache => { driver => 'RawMemory', global => 0, max_size => 128*1024*1024 }
+  );
+
+my $symbol_table_cache =
+  CHI->new( driver       => 'BerkeleyDB',
+            cache_size   => '1024m',
+            root_dir     => '/tmp/symbol_tables',
+            namespace    => 'symbol_tables',
+            global       => 0,
+            on_get_error => 'warn',
+            on_set_error => 'warn',
+            l1_cache => { driver => 'RawMemory', global => 0, max_size => 64*1024*1024 }
+           );
+
+my $ustack_resolve_pids_cache =
+  CHI->new( driver       => 'RawMemory',
+            cache_size   => '512m',
+            namespace    => 'ustack_resolve_pids',
+            global       => 0,
+            on_get_error => 'warn',
+            on_set_error => 'warn',
+           );
+
+
+my $gen_symtab_func = IO::Async::Function->new(
+  code        => \&gen_symbol_table
+);
+
+my $resolve_symbols_func = IO::Async::Function->new(
+  code        => \&resolve_symbols,
+);
+
+my $loop = IO::Async::Loop->new;
+
+$loop->add( $gen_symtab_func );
+$loop->add( $resolve_symbols_func );
+
+#
+# Generate the symbol table for each executable, and all dynamic libraries, when
+# necessary.  We no longer need to care if the base addresses are the same among
+# the pids.  We just make sure the libraries being used are:
+#
+# Create the missing cache items
+#
+my $symtabs_f = fmap {
+  my ($absolute_path) = shift;
+  say "Creating symbol table for $absolute_path";
+  Future->done( 
+      $absolute_path =>
+        $gen_symtab_func
+          ->call( args => [ $absolute_path, $exec_nm_output ] )->get
+  );
+} foreach => [ 
+               $execpath,
+             ], concurrent => 2;
+
+my %symtabs = $symtabs_f->get;
+
+say "SYMBOL TABLE KEYS:";
+foreach my $symtab_path (keys %symtabs) {
+  # if (basename($symtab_path) eq "libperl.so.5.22.0") {
+  #   say Dumper($symtabs{$symtab_path});
+  # }
+  unless (defined($symbol_table_cache
+                  ->set(basename($symtab_path),
+                        $symtabs{$symtab_path}, '7 days'))) {
+    say "FAILED to store KEY basename($symtab_path) in CACHE!"
+  }
+}
+
+say "SYMBOL TABLE KEYS IN CACHE:";
+say join("\n", $symbol_table_cache->get_keys);
+
+say "CREATING RED-BLACK SYMBOL TREE";
+my %symtab_trees;
+foreach my $key ($symbol_table_cache->get_keys) {
+  my $symtab_aref = $symbol_table_cache->get($key);
+  my $tree = Tree::RB->new();
+  foreach my $entry (@$symtab_aref) {
+    $tree->put( $entry->[0], $entry );
+  }
+
+  $symtab_trees{$key} = $tree;
+}
+say "RED-BLACK SYMBOL TREE COMPLETE";
+
+
+
+sub gen_symbol_table {
+  my ($exec_or_lib_path,$nm_output_file) = @_;
+
+  # $start_offset is the offset of the _START_ symbol in a library or exec
+  my ($symtab_aref,$symcount,$_start_offset);
+
+  # TODO: Check whether data is in cache; return immediately if it is
+
+  say "Building symtab from $nm_output_file";
+  # TODO: Convert to IO::Async::Process
+  my $out_fh    = IO::File->new($nm_output_file, "<") or
+    die "Unable to open $nm_output_file to generate symbol table";
+
+  my $out = do { local $/; <$out_fh>; };
+
+  say "CAPTURED " . length($out) . " BYTES OF OUTPUT FROM nm OF $exec_or_lib_path";
+
+  say "Parsing nm output for: $exec_or_lib_path";
+  while ($out =~ m/^ [^|]+                           \|
+                     (?:\s+)? (?<offset>\d+)         \| # Offset from base
+                     (?:\s+)? (?<size>\d+)           \| # Size
+                     (?<type>(?:FUNC|OBJT)) (?:\s+)? \| # A Function (or _START_ OBJT)
+                     [^|]+                           \|
+                     [^|]+                           \|
+                     [^|]+                           \|
+                     (?<funcname>[^\n]+)    \n
+                  /gsmx) {
+    my ($val);
+    #say "MATCHED: $+{funcname}";
+    if (not defined($_start_offset)) {
+      if ($+{funcname} eq "_START_") {
+        say "FOUND _START_ OFFSET OF: $+{offset}";
+        $_start_offset = $+{offset};
+        next;
+      }
+    }
+
+    # skip all types that aren't functions, or weren't already handled as
+    # the special _START_ OBJT symbol above
+    next if ($+{type} eq "OBJT");
+
+    $val = [ $+{offset}, $+{size}, $+{funcname} ];
+
+    push @$symtab_aref, $val;
+    if (($symcount++ % 1000) == 0) {
+      say "$exec_or_lib_path: PARSED $symcount SYMBOLS";
+    }
+  }
+  # ASSERT that $_start_offset is defined
+  assert_defined_variable($_start_offset);
+
+  if ($_start_offset == 0) {
+    say "NO NEED TO ADJUST OFFSETS FOR SYMBOLS IN: $exec_or_lib_path";
+  } else {
+    say "ADJUSTING OFFSETS FOR SYMBOLS IN: $exec_or_lib_path, BY $_start_offset";
+    foreach my $symval (@$symtab_aref) {
+      $symval->[0] -= $_start_offset;
+    }
+  }
+  # Sort the symbol table by starting address before returning it
+  say "SORTING SYMBOL TABLE: $exec_or_lib_path";
+  my (@sorted_symtab) = sort {$a->[0] <=> $b->[0] } @$symtab_aref;
+
+  # TODO: Add to cache with:
+  #       KEY: { exec_or_lib_path => $exec_or_lib_path, sha1 => $exec_or_lib_sha1 }
+
+  say "RETURNING SORTED SYMBOL TABLE FOR: $exec_or_lib_path";
+  return \@sorted_symtab;
+}
+
+#
+# Function to perform resolution of static symbol table from the actual execname binary itself,
+# apart from the dynamic libraries we're resolving.
+#
+
+sub start_stack_resolve {
+  my ($logfile,$exec_basename) = @_;
+
+  my $log_fh      = IO::File->new($logfile, "<");
+
+  my $resolved_fh = IO::File->new;
+  $resolved_fh->fdopen(fileno(STDOUT),"w");
+
+  my $filestream = IO::Async::Stream->new(
+    read_handle => $log_fh,
+    #autoflush   => 1,
+
+    on_read => sub {
+      my ( $self, $buffref, $eof ) = @_;
+      # as we read the file to resolve symbols in, we often need to know
+      # what the current PID is for the data which follows to do an accurate
+      # symbol table lookup
+      my ($current_pid);
+ 
+      while( $$buffref =~ s/^(.*)\n// ) {
+        my $line = $1;
+        #say "Received a line $line";
+
+        if ($line =~ m/^PID:(?<pid>\d+)/) {
+          $current_pid = $+{pid};
+          # TODO: look this PID's entries up in at least the following
+          #       namespaces, generating them asynchronously if necessary:
+          # - ustack_resolve_pids
+          # - symbol_table
+          $resolved_fh->print( "$line\n" );
+          next;
+        }
+        $line = resolve_symbols( $line, $current_pid );
+        $resolved_fh->print( "$line\n" );
+      }
+
+      if ($eof) {
+        say "EOF detected";
+      }
+
+      return 0;
+    },
+
+    on_read_eof => sub {
+      exit(0);
+    },
+  );
+
+  $loop->add( $filestream );
+}
+
+start_stack_resolve($dtrace_output,basename($execname));
+
+$loop->run;
+
+sub resolve_symbols {
+  my ($line,$pid) = @_;
+
+  my ($symtab);
+  my $unresolved_re =
+    qr/^(?<keyfile>[^:]+):0x(?<offset>[\da-fA-F]+)/;
+
+  if ($line =~ m/^(?<keyfile>[^:]+):0x(?<offset>[\da-fA-F]+)$/) {
+    # Return direct lookup if available
+    if (my ($result) = $direct_symbol_cache->get($line)) {
+      return $result if defined($result);
+    }
+    my ($keyfile, $offset) = ($+{keyfile}, hex( $+{offset} ) );
+
+    if ( defined( my $search_tree = $symtab_trees{$keyfile} ) ) {
+      my $symtab_entry = $search_tree->lookup( $offset, LULTEQ );
+      if (defined($symtab_entry)) {
+        if (($offset >= $symtab_entry->[0] ) and
+            ($offset <= ($symtab_entry->[0] + $symtab_entry->[1]) ) ) {
+          my $resolved =
+            sprintf("%s+0x%x",
+                    $symtab_entry->[2],
+                    $offset - $symtab_entry->[0]);
+          # If we got here, we have something to store in the direct symbol
+          # lookup cache
+          $direct_symbol_cache->set($line,$resolved,'7 days');
+          $line =~ s/^(?<keyfile>[^:]+):0x(?<offset>[\da-fA-F]+)$/${resolved}/;
+        } else {
+          $line .= " [SYMBOL TABLE LOOKUP FAILED]";
+        }
+      } else {
+        die "WHAT THE HECK HAPPENED???";
+      }
+    } else {
+      $line .= " [NO SYMBOL TABLE FOR $keyfile]";
+    }
+    return $line;
+  } else {
+    return $line;
+  }
+}
+
+END {
+  CHI->stats->flush();
+}

@@ -42,13 +42,14 @@ Readonly::Scalar my $DTRACE => "/sbin/dtrace";
 Log::Log4perl->easy_init($INFO);
 Log::Any::Adapter->set('Log4perl');
 
-my ($execname,$execpath);
+my ($execname,$execpath,$exec_basename,$pid);
 
-GetOptions("execname=s"  => \$execname) or
+GetOptions("execname=s"  => \$execname,
+           "pid=i"       => \$pid) or
   die("Error in command line arguments");
 
-unless (defined $execname) {
-  die "--execname argument required";
+unless ((defined $execname) or (defined $pid)) {
+  die "--execname or --pid argument required";
 }
 
 my @execname_pids;
@@ -154,7 +155,15 @@ $loop->add( $pmap_func );
 $loop->add( $gen_symtab_func );
 $loop->add( $resolve_symbols_func );
 
-my $pids_aref = get_execname_pids($execname);
+my ($pids_aref);
+
+if ($execname) {
+  $pids_aref = get_execname_pids($execname);
+} elsif ($pid) {
+  $pids_aref = [ $pid ];
+} else {
+  die "Unable to determine pids to instrument";
+}
 
 my (%execpaths);
 foreach my $pid (@$pids_aref) {
@@ -170,6 +179,7 @@ foreach my $pid (@$pids_aref) {
 if (scalar( keys %execpaths ) == 1) {
   ($execpath) = keys %execpaths;
   say "EXECPATH: $execpath";
+  $exec_basename = basename($execpath);
 } else {
   say "TOO MANY EXECPATHS, --execname not unique/specific enough:\n" .
   join("\n", keys %execpaths);
@@ -420,7 +430,7 @@ sub gen_symbol_table {
     $val = [ $+{offset}, $+{size}, $+{funcname} ];
 
     push @$symtab_aref, $val;
-    if (($symcount++ % 1000) == 0) {
+    if (($symcount++ % 10000) == 0) {
       say "$exec_or_lib_path: PARSED $symcount SYMBOLS";
     }
   }
@@ -456,7 +466,7 @@ sub gen_symbol_table {
 #
 # Build a DTrace script, return the text of it
 #
-sub build_dtrace_script {
+sub build_dtrace_script_for_execname {
   my ($execname) = shift;
 
   my $script = <<'END';
@@ -561,6 +571,115 @@ WHATFOR_END
   return $script;
 }
 
+
+
+
+sub build_dtrace_script_for_pid {
+  my ($pid) = shift;
+
+  my $script = <<'END';
+#pragma D option noresolve
+#pragma D option quiet
+#pragma D option ustackframes=100
+
+profile-197Hz
+/ pid == __PID__ /
+{
+  @s[pid,tid,stack(),ustack()] = count();
+}
+
+tick-1sec
+{
+  printf("\n%Y\n",walltimestamp);
+
+  /* We prefix with PID:<pid> so that we can determine which PID we're working
+   * on, on the off chance that individual PIDs have set LD_LIBRARY_PATH or
+   * similar, such that some shared libraries differ, even though the
+   * execpath (fully qualified path to an executable), execname (basename)
+   * of the same executable), and SHA-1 of the executable are all
+   * identical between PIDs.
+   */
+  printa("PID:%-5d %-3d %k %k %@12u\n",@s);
+
+  trunc(@s);
+}
+
+END
+
+  my $whatfor_script = <<'WHATFOR_END';
+#pragma D option noresolve
+#pragma D option quiet
+#pragma D option ustackframes=100
+
+sched:::off-cpu
+/ pid == __PID__ &&
+  curlwpsinfo &&
+  curlwpsinfo->pr_state == SSLEEP /
+{
+  /*
+   * We're sleeping.  Track our sobj type.
+   */
+  self->sobj = curlwpsinfo->pr_stype;
+  self->bedtime = timestamp;
+}
+
+sched:::off-cpu
+/ pid == __PID__ &&
+  curlwpsinfo &&
+  curlwpsinfo->pr_state == SRUN /
+{
+  self->bedtime = timestamp;
+}
+
+sched:::on-cpu
+/self->bedtime && !self->sobj/
+{
+  @["preempted",pid,tid] = quantize(timestamp - self->bedtime);
+  @sdata[pid,tid,stack(),ustack()] = count();
+  self->bedtime = 0; 
+}
+
+sched:::on-cpu
+/self->sobj/
+{
+  @[self->sobj == SOBJ_MUTEX ? "kernel-level lock" :
+    self->sobj == SOBJ_RWLOCK ? "rwlock" :
+    self->sobj == SOBJ_CV ? "condition variable" :
+    self->sobj == SOBJ_SEMA ? "semaphore" :
+    self->sobj == SOBJ_USER ? "user-level lock" :
+    self->sobj == SOBJ_USER_PI ? "user-level prio-inheriting lock" :
+    self->sobj == SOBJ_SHUTTLE ? "shuttle" : "unknown",
+    pid,tid] = quantize(timestamp - self->bedtime);
+  @sdata[pid,tid,stack(),ustack()] = count();
+
+  self->sobj = 0; 
+  self->bedtime = 0; 
+}
+
+tick-1sec
+{
+  printf("\n%Y\n",walltimestamp);
+
+  printf("%-32s %5s %-3s %-12s\n","SOBJ OR PREEMPTED","PID","TID","LATENCY(ns)");
+  printa("%-32s %5d %-3d %-@12u\n",@);
+
+  trunc(@sdata,32);
+  /* printa("PID:%-5d %-3d %k %k %@12u\n",@sdata); */
+  printa("%5d %-3d %k %k %@12u\n",@sdata);
+
+  trunc(@);
+  trunc(@sdata);
+}
+
+WHATFOR_END
+
+  $script =~ s/__PID__/$pid/gsmx;
+  $whatfor_script =~ s/__PID__/$pid/gsmx;
+
+  return $script;
+}
+
+
 #
 # Given a DTrace script, return the filehandle for a temporary filename that
 # contains it
@@ -579,9 +698,17 @@ sub build_dtrace_script_fh {
 my $dscript_fh_holder;
 
 sub start_dtrace {
-  my ($execname) = shift;
+  my ($arg_href) = shift;
+  my ($script);
 
-  my ($script) = build_dtrace_script($execname);
+  if (exists($arg_href->{execname})) {
+    $script = build_dtrace_script_for_execname($arg_href->{execname});
+  } elsif (exists($arg_href->{pid})) {
+    $script = build_dtrace_script_for_pid($arg_href->{pid});
+  } else {
+    die "Unable to build a DTrace script without a pid or execname!";
+  }
+
   my ($dscript_fh) = build_dtrace_script_fh( $script );
   my ($dscript_filename) = $dscript_fh->filename;
   $dscript_fh_holder = $dscript_fh;
@@ -640,15 +767,24 @@ sub start_dtrace {
   $loop->add( $dtrace_process );
 }
 
-start_dtrace(basename($execname));
+if ($execname) {
+  start_dtrace( { execname => basename($execname) } );
+} else {
+  start_dtrace( { pid => $pid } );
+}
 
 sub start_stack_resolve {
   my ($logfile,$exec_basename) = @_;
 
+  #
+  # TODO Add ability to send to file or STDOUT via a command line arg
+  #
+  my $resolved_fname = "/bb/pm/data/$exec_basename.resolved";
+  say "RESOLVED STACKS AVAILABLE HERE: $resolved_fname";
   my $log_fh      = IO::File->new($logfile, "<");
-  #my $resolved_fh = IO::File->new("/bb/pm/data/$exec_basename-.resolved", ">>");
-  my $resolved_fh = IO::File->new;
-  $resolved_fh->fdopen(fileno(STDOUT),"w");
+  my $resolved_fh = IO::File->new($resolved_fname, ">>");
+  #my $resolved_fh = IO::File->new;
+  #$resolved_fh->fdopen(fileno(STDOUT),"w");
 
   my $filestream = IO::Async::FileStream->new(
     read_handle => $log_fh,
@@ -691,7 +827,7 @@ sub start_stack_resolve {
   $loop->add( $filestream );
 }
 
-start_stack_resolve("/bb/pm/data/dscript.out",basename($execname));
+start_stack_resolve("/bb/pm/data/dscript.out",$exec_basename);
 
 $loop->run;
 
