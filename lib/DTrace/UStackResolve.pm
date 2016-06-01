@@ -97,7 +97,7 @@ has 'loop' => (
 
 =method new()
 
-The constructor takes the following attributed:
+The constructor takes the following attributes:
 
 =for :list
 * execname:                Full path to executable you want to get user stacks

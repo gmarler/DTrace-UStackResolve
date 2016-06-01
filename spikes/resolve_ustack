@@ -42,6 +42,10 @@ Readonly::Scalar my $DTRACE => "/sbin/dtrace";
 Log::Log4perl->easy_init($INFO);
 Log::Any::Adapter->set('Log4perl');
 
+our ($dscript_out, $dscript_err) =
+    ( "/tmp/dscript.out", "/tmp/dscript.err" );
+our ($resolved_fname) = ( "" );
+
 my ($execname,$execpath,$exec_basename,$pid);
 
 GetOptions("execname=s"  => \$execname,
@@ -167,12 +171,19 @@ if ($execname) {
 
 my (%execpaths);
 foreach my $pid (@$pids_aref) {
-  my $a_out = "/proc/$pid/path/a.out";
-  my ($abs_path) = readlink($a_out);
-  if (not defined($abs_path)) {
-    carp "could not open $a_out: $!";
-    next;
-  }
+  #my $a_out = "/proc/$pid/path/a.out";
+  #my ($abs_path) = readlink($a_out);
+  #if (not defined($abs_path)) {
+  #  carp "could not open $a_out: $!";
+  #  next;
+  #}
+  my $pargs_out = capture( "/bin/pargs $pid" );
+  $pargs_out =~ m/^argv\[0\]:\s+(?<abs_path>[^\n]+)/gsmx;
+  my $abs_path = $+{abs_path};
+  say "EXTRACTED ABSOLUTE PATH: $abs_path";
+
+  # Because the name of the process isn't always what the filename is
+  # EXAMPLE: ksh93 shows up as ksh instead
   $execpaths{$abs_path}++;
 }
 
@@ -674,7 +685,7 @@ WHATFOR_END
   $script =~ s/__PID__/$pid/gsmx;
   $whatfor_script =~ s/__PID__/$pid/gsmx;
 
-  return $script;
+  return $whatfor_script;
 }
 
 
@@ -715,10 +726,10 @@ sub start_dtrace {
 
   say "Going to execute: $cmd";
 
-  my $dscript_output_fh = IO::File->new("/bb/pm/data/dscript.out", ">")
-    or die "Unable to open /bb/pm/data/dscript.out for writing: $!";;
-  my $dscript_stderr_fh = IO::File->new("/bb/pm/data/dscript.err", ">")
-    or die "Unable to open /bb/pm/data/dscript.err for writing: $!";;
+  my $dscript_output_fh = IO::File->new($dscript_out, ">")
+    or die "Unable to open $dscript_out for writing: $!";;
+  my $dscript_stderr_fh = IO::File->new($dscript_err, ">")
+    or die "Unable to open $dscript_err for writing: $!";;
 
   my $dtrace_process =
     IO::Async::Process->new(
@@ -777,10 +788,11 @@ sub start_stack_resolve {
   #
   # TODO Add ability to send to file or STDOUT via a command line arg
   #
-  my $resolved_fname = "/bb/pm/data/$exec_basename.resolved";
+  my $resolved_fname = "/tmp/$exec_basename.resolved";
   say "RESOLVED STACKS AVAILABLE HERE: $resolved_fname";
   my $log_fh      = IO::File->new($logfile, "<");
-  my $resolved_fh = IO::File->new($resolved_fname, ">>");
+  my $resolved_fh = IO::File->new($resolved_fname, ">>") or
+    die "Unable to open $resolved_fname for writing";
   #my $resolved_fh = IO::File->new;
   #$resolved_fh->fdopen(fileno(STDOUT),"w");
 
@@ -825,7 +837,7 @@ sub start_stack_resolve {
   $loop->add( $filestream );
 }
 
-start_stack_resolve("/bb/pm/data/dscript.out",$exec_basename);
+start_stack_resolve($dscript_out ,$exec_basename);
 
 $loop->run;
 
