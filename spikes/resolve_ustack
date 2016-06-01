@@ -46,14 +46,21 @@ our ($dscript_out, $dscript_err) =
     ( "/tmp/dscript.out", "/tmp/dscript.err" );
 our ($resolved_fname) = ( "" );
 
-my ($execname,$execpath,$exec_basename,$pid);
+my ($execname,$dtrace_type,$execpath,$exec_basename,$pid);
 
 GetOptions("execname=s"  => \$execname,
-           "pid=i"       => \$pid) or
+           "pid=i"       => \$pid,
+           "type=s"      => \$dtrace_type,
+         ) or
   die("Error in command line arguments");
 
 unless ((defined $execname) or (defined $pid)) {
   die "--execname or --pid argument required";
+}
+
+unless ((defined($dtrace_type)) {
+  say "Defaulting to DTrace type of 'profile'";
+  $dtrace_type = "profile";
 }
 
 my @execname_pids;
@@ -177,13 +184,14 @@ foreach my $pid (@$pids_aref) {
   #  carp "could not open $a_out: $!";
   #  next;
   #}
+  #
+  # Because the name of the process isn't always what the filename is
+  # EXAMPLE: ksh93 shows up as ksh instead
   my $pargs_out = capture( "/bin/pargs $pid" );
   $pargs_out =~ m/^argv\[0\]:\s+(?<abs_path>[^\n]+)/gsmx;
   my $abs_path = $+{abs_path};
   say "EXTRACTED ABSOLUTE PATH: $abs_path";
 
-  # Because the name of the process isn't always what the filename is
-  # EXAMPLE: ksh93 shows up as ksh instead
   $execpaths{$abs_path}++;
 }
 
@@ -579,7 +587,13 @@ WHATFOR_END
   $script =~ s/__EXECNAME__/$execname/gsmx;
   $whatfor_script =~ s/__EXECNAME__/$execname/gsmx;
 
-  return $script;
+  if ($dtrace_type eq "profile") {
+    return $script;
+  } elsif ($dtrace_type eq "off-cpu") {
+    return $whatfor_script;
+  } else {
+    die "--type=$dtrace_type is INVALID";
+  }
 }
 
 
@@ -685,7 +699,13 @@ WHATFOR_END
   $script =~ s/__PID__/$pid/gsmx;
   $whatfor_script =~ s/__PID__/$pid/gsmx;
 
-  return $whatfor_script;
+  if ($dtrace_type eq "profile") {
+    return $script;
+  } elsif ($dtrace_type eq "off-cpu") {
+    return $whatfor_script;
+  } else {
+    die "--type=$dtrace_type is INVALID";
+  }
 }
 
 
