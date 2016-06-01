@@ -51,14 +51,16 @@ my ($execname,$dtrace_type,$execpath,$exec_basename,$pid);
 GetOptions("execname=s"  => \$execname,
            "pid=i"       => \$pid,
            "type=s"      => \$dtrace_type,
-         ) or
+          ) or
   die("Error in command line arguments");
 
 unless ((defined $execname) or (defined $pid)) {
   die "--execname or --pid argument required";
 }
 
-unless ((defined($dtrace_type)) {
+if (defined($dtrace_type)) {
+  say "Using DTrace Type of: $dtrace_type";
+} else {
   say "Defaulting to DTrace type of 'profile'";
   $dtrace_type = "profile";
 }
