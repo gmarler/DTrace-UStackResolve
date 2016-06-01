@@ -93,7 +93,7 @@ my $ustack_resolve_pids_cache =
 
 sub get_execname_pids {
   my ($execname) = shift;
- 
+
   my @output = capture( "$pgrep -lxf '^$execname.+'" );
   chomp(@output);
   say "PIDS:";
@@ -221,11 +221,11 @@ foreach my $href (@execname_pids) {
 #    );
 #    #Future->done( { sha1 => '1234567890abcdef', pid => $pid, } );
 #  } foreach => [ map { [ $_, $pids_a_out_files{$_} ] } keys %pids_a_out_files ], concurrent => 2;
-#  
+#
 #  #say Dumper( $sha1_f );
-#  
+#
 #  my @sha1_hrefs = $sha1_f->get;
-#  
+#
 #  say Dumper( \@sha1_hrefs );
 
 # TODO: Complain loudly and die if not all of the SHA-1 digests match
@@ -246,7 +246,7 @@ my @file_paths = $file_paths_f->get;
 
 # say Dumper( [ @file_paths ] );
 
-my @absolute_file_paths = 
+my @absolute_file_paths =
   uniq
   map { @$_ } @file_paths;
 
@@ -265,7 +265,7 @@ say Dumper( \@absolute_file_paths );
 #
 
 # Look for the symbol tables missing from the cache
-my @missing_symtab_cache_items = 
+my @missing_symtab_cache_items =
   grep { not defined($symbol_table_cache->get(basename($_))); }
   $execpath,         # Don't forget to add the executable path itself
   @absolute_file_paths;
@@ -274,10 +274,10 @@ my @missing_symtab_cache_items =
 my $symtabs_f = fmap {
   my ($absolute_path) = shift;
   say "Creating symbol table for $absolute_path";
-  Future->done( 
+  Future->done(
       $absolute_path => $gen_symtab_func->call( args => [ $absolute_path ] )->get
   );
-} foreach => [ 
+} foreach => [
                @missing_symtab_cache_items
              ], concurrent => 2;
 
@@ -349,7 +349,7 @@ sub pid_dynamic_library_paths {
   # TODO: Check whether this has already been stored for this PID instance, using
   #       KEY: { pid => $pid, start_epoch => $start_epoch }
   #       Return immediately if available
-  
+
 
   my $pmap_output = capture( "$pmap $pid" );
   my $dynsym_offset_href =  { };
@@ -528,7 +528,7 @@ sched:::on-cpu
 {
   @["preempted",pid,tid] = quantize(timestamp - self->bedtime);
   @sdata[pid,tid,stack(),ustack()] = count();
-  self->bedtime = 0; 
+  self->bedtime = 0;
 }
 
 sched:::on-cpu
@@ -544,8 +544,8 @@ sched:::on-cpu
     pid,tid] = quantize(timestamp - self->bedtime);
   @sdata[pid,tid,stack(),ustack()] = count();
 
-  self->sobj = 0; 
-  self->bedtime = 0; 
+  self->sobj = 0;
+  self->bedtime = 0;
 }
 
 tick-1sec
@@ -570,8 +570,6 @@ WHATFOR_END
 
   return $script;
 }
-
-
 
 
 sub build_dtrace_script_for_pid {
@@ -636,7 +634,7 @@ sched:::on-cpu
 {
   @["preempted",pid,tid] = quantize(timestamp - self->bedtime);
   @sdata[pid,tid,stack(),ustack()] = count();
-  self->bedtime = 0; 
+  self->bedtime = 0;
 }
 
 sched:::on-cpu
@@ -652,8 +650,8 @@ sched:::on-cpu
     pid,tid] = quantize(timestamp - self->bedtime);
   @sdata[pid,tid,stack(),ustack()] = count();
 
-  self->sobj = 0; 
-  self->bedtime = 0; 
+  self->sobj = 0;
+  self->bedtime = 0;
 }
 
 tick-1sec
@@ -733,7 +731,7 @@ sub start_dtrace {
             my $data = substr($$buffref,0, 1024*1024 ,'');
             $dscript_output_fh->print( $data );
           }
- 
+
           return 0;
         },
       },
@@ -743,7 +741,7 @@ sub start_dtrace {
           while ( $$buffref =~ s/^(.*)\n// ) {
             $dscript_stderr_fh->print( $1 . "\n" );
           }
- 
+
           return 0;
         },
       },
@@ -795,14 +793,14 @@ sub start_stack_resolve {
     #  # Start at beginning of file
     #  $self->seek( 0 );
     #},
- 
+
     on_read => sub {
       my ( $self, $buffref ) = @_;
       # as we read the file to resolve symbols in, we often need to know
       # what the current PID is for the data which follows to do an accurate
       # symbol table lookup
       my ($current_pid);
- 
+
       while( $$buffref =~ s/^(.*)\n// ) {
         my $line = $1;
         #say "Received a line $line";

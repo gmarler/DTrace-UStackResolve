@@ -4,5 +4,5 @@
 # Avoid utility files
 .build
 _build
-# Avoid archives of this distribution
+# Avoid archives of *this* distribution
 /DTrace-UStackResolve*
