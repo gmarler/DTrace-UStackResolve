@@ -121,4 +121,14 @@ sub test_pids {
   cmp_deeply( $pids_aref, bag( re(qr/^\d+$/) ) );
 }
 
+sub test_constructor_with_pid {
+  my ($test) = shift;
+
+  my ($obj, $pids_aref);
+
+  $obj = $test->class_name->new( pid => $$ );
+
+  is($obj->execname, !undef, "passing pid arg produces an execname");
+}
+
 1;

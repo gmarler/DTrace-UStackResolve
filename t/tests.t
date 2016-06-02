@@ -1,4 +1,7 @@
-use Test::Class::Moose::Load 't/lib';
+use File::Spec::Functions qw( catdir );
+use FindBin qw( $Bin );
+
+use Test::Class::Moose::Load catdir( $Bin, '..', 't', 'lib' );
 use Test::Class::Moose::Runner;
 
 my $test_suite = Test::Class::Moose::Runner->new(

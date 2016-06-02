@@ -9,7 +9,7 @@ use Moose::Util::TypeConstraints;
 use MooseX::ClassAttribute;
 use namespace::autoclean;
 use File::Basename;
-use FindBin;
+use FindBin               qw( $Bin );
 use IO::File;
 use IO::Async;
 use IO::Async::Loop;
@@ -136,6 +136,7 @@ has 'type'     => (
   is          => 'ro',
   isa         => 'Str',
   default     => 'profile',
+  # TODO: Add a constraint to the available scripts
 );
 
 # TODO: Add a test for constructor called with execname only and pid only
