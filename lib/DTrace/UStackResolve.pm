@@ -9,6 +9,7 @@ use Moose::Util::TypeConstraints;
 use MooseX::ClassAttribute;
 use namespace::autoclean;
 use File::Basename;
+use FindBin;
 use IO::File;
 use IO::Async;
 use IO::Async::Loop;
@@ -19,6 +20,7 @@ use CHI;
 use Tree::RB              qw( LULTEQ );
 use IPC::System::Simple   qw( capture $EXITVAL EXIT_ANY );
 use Carp;
+use Data::Dumper;
 
 #
 # TODO: This module assumes use of a Perl with 64-bit ints.  Check for this, or
@@ -100,9 +102,13 @@ has 'loop' => (
 The constructor takes the following attributes:
 
 =for :list
-* execname:                Full path to executable you want to get user stacks
-                           for.
-                           Required, no default.
+* execname or pid:         Full path to executable you want to get user stacks
+                           for, OR, the PID of interest.
+                           One is required, there is no default.
+
+* type:                    The type of DTrace to run, from this list:
+                           profile
+                           off-cpu
 
 * user_stack_frames:       The depth of the user stacks you want to receive
                            in the output.
@@ -120,6 +126,33 @@ has 'execname' => (
   #builder     => '_build_execname',
   required    => 1,
 );
+
+has 'pid'      => (
+  is          => 'ro',
+  isa         => 'Int',
+);
+
+has 'type'     => (
+  is          => 'ro',
+  isa         => 'Str',
+  default     => 'profile',
+);
+
+# TODO: Add a test for constructor called with execname only and pid only
+override BUILDARGS => sub {
+  my $class = shift;
+
+  if (exists($_[0]->{pid})) {
+    my $pid = $_[0]->{pid};
+    my $pargs_out = capture( "/bin/pargs $pid" );
+    $pargs_out =~ m/^argv\[0\]:\s+(?<abs_path>[^\n]+)/gsmx;
+    my $abs_path = $+{abs_path};
+    say "EXTRACTED ABSOLUTE PATH: $abs_path";
+    $_[0]->{execname} = $abs_path;
+  }
+
+  return super;
+};
 
 # The modification time(s) of the execname we started this up
 # for.  The point of this is to detect when the value increases,

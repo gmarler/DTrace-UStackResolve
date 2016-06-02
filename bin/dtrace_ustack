@@ -4,10 +4,25 @@ use strict;
 use warnings;
 
 use DTrace::UStackResolve;
+use Getopt::Long;
 
+my ($execname, $pid, $ctor_args);
+
+GetOptions("execname=s", \$execname,
+           "pid=i",      \$pid,
+       )
+         or die("Error in command line arguments");
+
+# PODNAME: dtrace_ustack
+
+if (defined($execname)) {
+  $ctor_args->{execname} = $execname;
+} elsif (defined($pid)) {
+  $ctor_args->{pid}      = $pid;
+}
 
 my $dtus = DTrace::UStackResolve->new(
-  execname => 'ksh',
+  $ctor_args
 );
 
 

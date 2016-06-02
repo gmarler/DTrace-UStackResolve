@@ -659,8 +659,7 @@ sched:::off-cpu
 sched:::on-cpu
 /self->bedtime && !self->sobj/
 {
-  @["preempted",pid,tid] = quantize(timestamp - self->bedtime);
-  @sdata[pid,tid,stack(),ustack()] = count();
+  @["preempted",pid,tid,stack(),ustack()] = quantize(timestamp - self->bedtime);
   self->bedtime = 0;
 }
 
@@ -674,8 +673,7 @@ sched:::on-cpu
     self->sobj == SOBJ_USER ? "user-level lock" :
     self->sobj == SOBJ_USER_PI ? "user-level prio-inheriting lock" :
     self->sobj == SOBJ_SHUTTLE ? "shuttle" : "unknown",
-    pid,tid] = quantize(timestamp - self->bedtime);
-  @sdata[pid,tid,stack(),ustack()] = count();
+    pid,tid,stack(),ustack()] = quantize(timestamp - self->bedtime);
 
   self->sobj = 0;
   self->bedtime = 0;
@@ -686,14 +684,9 @@ tick-1sec
   printf("\n%Y\n",walltimestamp);
 
   printf("%-32s %5s %-3s %-12s\n","SOBJ OR PREEMPTED","PID","TID","LATENCY(ns)");
-  printa("%-32s %5d %-3d %-@12u\n",@);
-
-  trunc(@sdata,32);
-  /* printa("PID:%-5d %-3d %k %k %@12u\n",@sdata); */
-  printa("%5d %-3d %k %k %@12u\n",@sdata);
+  printa("%-32s %5d %-3d %-@12u %k %k\n",@);
 
   trunc(@);
-  trunc(@sdata);
 }
 
 WHATFOR_END
