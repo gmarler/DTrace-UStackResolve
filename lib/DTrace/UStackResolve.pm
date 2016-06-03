@@ -19,6 +19,9 @@ use IO::Async::FileStream;
 use IO::Async::Function;
 use IO::Async::Process;
 use Future;
+use Future::Utils         qw( fmap );
+use List::Util            qw( first );
+use List::MoreUtils       qw( uniq );
 use CHI;
 use Digest::SHA1          qw( );
 use Tree::RB              qw( LULTEQ );
@@ -308,6 +311,30 @@ has 'dynamic_library_paths' => (
   predicate   => '_has_dynamic_library_paths',
 );
 
+sub _build_dynamic_library_paths {
+  my ($self) = shift;
+  my $pid_starttime_href = $self->pid_starttime;
+  my $pmap_func          = $self->pmap_func;
+
+  my $file_paths_f = fmap {
+    my ($aref) = @_;
+    my ($pid, $start_epoch) = @$aref;
+    say "Obtaining list of dynamic libs for PID $pid";
+    Future->done( $pmap_func->call( args => [ $pid, $start_epoch ] )->get );
+  } foreach => [ map { [ $_, $pid_starttime_href->{$_} ] } keys %{$pid_starttime_href} ],
+    concurrent => 8;
+
+  my @file_paths = $file_paths_f->get;
+
+  my @absolute_file_paths =
+    uniq
+    map { @$_ } @file_paths;
+
+  say Dumper( \@file_paths );
+  say Dumper( \@absolute_file_paths );
+  return \@absolute_file_paths;
+}
+
 has 'symbol_table' => (
   init_arg    => undef,   # don't allow specifying in the constructor
   is          => 'rw',
@@ -410,9 +437,12 @@ sub BUILD {
   #  $self->dscript_unresolved_out;
   $self->dscript_unresolved_out_fh;
   $self->_sanity_check_type;
+  $self->pmap_func;
+  $self->sha1_func;
   $self->loop;
   $self->pids;
   $self->pid_starttime;
+  $self->dynamic_library_paths;
   # TODO:
   # - Get the basename of the execname
   $self->personal_execname;
@@ -456,18 +486,35 @@ rather than a live PID.
 
 =cut
 
+has sha1_func => (
+  is      => 'ro',
+  isa     => 'IO::Async::Function',
+  default => sub {
+    return IO::Async::Function->new(
+      code        => \&_file_sha1_digest,
+    ),
+  },
+  lazy    => 1,
+);
+
+has pmap_func => (
+  is      => 'ro',
+  isa     => 'IO::Async::Function',
+  default => sub {
+    return IO::Async::Function->new(
+      code        => \&_pid_dynamic_library_paths,
+    ),
+  },
+  lazy    => 1,
+);
+
 sub _build_loop {
   my ($self) = shift;
 
   my $loop = IO::Async::Loop->new;
 
-  my $sha1_func = IO::Async::Function->new(
-    code        => \&_file_sha1_digest,
-  );
-
-  my $pmap_func = IO::Async::Function->new(
-    code        => \&pid_dynamic_library_paths
-  );
+  my $sha1_func = $self->sha1_func;
+  my $pmap_func = $self->pmap_func;
 
   #my $gen_symtab_func = IO::Async::Function->new(
   #  code        => \&gen_symbol_table
@@ -1003,7 +1050,7 @@ sub start_stack_resolve {
 #
 # UTILITY FUNCTIONS - NOT to be called as object methods, but as Future loops
 #
-sub pid_dynamic_library_paths {
+sub _pid_dynamic_library_paths {
   my ($pid) = shift;
 
   # NOTE: It's likely we don't need to bother caching this, as it's really
