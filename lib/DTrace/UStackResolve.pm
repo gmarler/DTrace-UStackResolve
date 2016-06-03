@@ -10,6 +10,7 @@ use MooseX::ClassAttribute;
 use MooseX::Log::Log4perl;
 use namespace::autoclean;
 use File::Basename;
+use File::stat;
 use FindBin               qw( $Bin );
 use IO::File;
 use IO::Async;
@@ -140,6 +141,17 @@ has 'execname' => (
   required    => 1,
 );
 
+# NOTE: The name DTrace puts in the ustack to identify the binary itself; often
+#       is the name it was invoked with rather than it's real, true name
+has 'personal_execname' => (
+  # This will be a basename
+  is          => 'ro',
+  isa         => 'Maybe[Str]',
+  lazy        => 1,
+  default     => undef,
+);
+
+
 has 'pid'      => (
   is          => 'ro',
   isa         => 'Int',
@@ -191,7 +203,8 @@ override BUILDARGS => sub {
     say "PARGS OUT: $pargs_out";
     $pargs_out =~ m/^argv\[0\]:\s+(?<personal_execname>[^\n]+)/gsmx;
     my $personal_execname = $+{personal_execname};
-    $_[0]->{personal_execname} = $personal_execname;
+    # NOTE: Storing the basename only
+    $_[0]->{personal_execname} = basename($personal_execname);
   }
 
   return super;
@@ -255,18 +268,28 @@ has 'dscript_unresolved_out_fh' => (
 );
 
 
-# The modification time(s) of the execname we started this up
+# The start time(s) of the execname we started this up
 # for.  The point of this is to detect when the value increases,
 # indicating that we need to recalculate the:
 # - symbol cache
-# - Red-Black symbol lookup tree
+# - Red-Black or AA symbol lookup tree
 # - direct lookup cache
 # TODO: A check for this should be done whenever a new PID is detected
 #       in the DTrace output
-has 'execname_mtime' => (
+has 'pid_starttime' => (
   is          => 'rw',
   isa         => 'HashRef[Int]',
+  builder     => '_build_pid_starttime',
+  lazy        => 1,
 );
+
+sub _build_pid_starttime {
+  my ($self) = shift;
+
+  my %start_times =
+    map { $_ => $self->_get_pid_start_epoch($_); } @{$self->pids};
+  return \%start_times;
+}
 
 has 'pids' => (
   is          => 'rw',
@@ -389,8 +412,10 @@ sub BUILD {
   $self->_sanity_check_type;
   $self->loop;
   $self->pids;
+  $self->pid_starttime;
   # TODO:
   # - Get the basename of the execname
+  $self->personal_execname;
   # - Define the filename for the resolved ustacks to be written to
 }
 
@@ -1014,7 +1039,7 @@ sub pid_dynamic_library_paths {
 }
 
 sub _get_pid_start_epoch {
-  my ($pid) = shift;
+  my ($self,$pid) = @_;
 
   my ($st);
 
