@@ -7,6 +7,7 @@ use warnings;
 use Moose;
 use Moose::Util::TypeConstraints;
 use MooseX::ClassAttribute;
+use MooseX::Log4perl;
 use namespace::autoclean;
 use File::Basename;
 use FindBin               qw( $Bin );
@@ -15,6 +16,7 @@ use IO::Async;
 use IO::Async::Loop;
 use IO::Async::FileStream;
 use IO::Async::Function;
+use IO::Async::Process;
 use Future;
 use CHI;
 use Tree::RB              qw( LULTEQ );
@@ -132,6 +134,15 @@ has 'pid'      => (
   isa         => 'Int',
 );
 
+# Normally only set if profile is one that requires a tid
+has 'tid'      => (
+  # TODO: Unless the appropriate 'type' is specified (requiring a tid), just
+  # note that the tid isn't being honored.
+  is          => 'ro',
+  isa         => 'Maybe[Int]',
+  default     => undef,
+);
+
 has 'type'     => (
   is          => 'ro',
   isa         => 'Str',
@@ -154,6 +165,50 @@ override BUILDARGS => sub {
 
   return super;
 };
+
+#
+# OUTPUT FILE NAMES
+#
+# DTrace script output with unresolved stacks
+has 'dscript_unresolved_out' => (
+  is          => 'rw',
+  isa         => 'Str',
+  #builder     => '_build_dscript_unresolved_out',
+  default     => "/tmp/dscript.out",
+);
+
+# DTrace script Error output
+has 'dscript_err' => (
+  is          => 'rw',
+  isa         => 'Str',
+  #builder     => '_build_dscript_err',
+  default     => "/tmp/dscript.err",
+);
+
+# DTrace output with resolved ustacks
+# NOTE: dependent on the exec_basename already being set
+has 'resolved_out' => (
+  is          => 'rw',
+  isa         => 'Str',
+  builder     => '_build_resolved_out',
+);
+
+sub _build_resolved_out {
+  my ($self) = shift;
+}
+
+#
+# OUTPUT FILE HANDLES for above
+#
+has 'dscript_unresolved_out_fh' => (
+  is          => 'rw',
+  isa         => 'Str',
+  default     =>
+    sub {
+
+    },
+);
+
 
 # The modification time(s) of the execname we started this up
 # for.  The point of this is to detect when the value increases,
@@ -251,6 +306,14 @@ sub _build_symbol_table_cache {
            );
 }
 
+#
+# This is where we define the order of attribute definition
+#
+sub BUILD {
+  # TODO:
+  # - Get the basename of the execname
+  # - Define the filename for the resolved ustacks to be written to
+}
 
 =head1 METHODS
 
@@ -586,10 +649,18 @@ sub _replace_DTrace_keywords {
   my ($self,$script) = @_;
 
   my ($execname,$ustack_frames) =
-   ($self->execname, $self->user_stack_frames);
+    ($self->execname, $self->user_stack_frames);
+  my ($pid, $tid) =
+    ($self->pid, $self->tid);
 
   $script =~ s/__EXECNAME__/$execname/gsmx;
   $script =~ s/__USTACK_FRAMES__/$ustack_frames/gsmx;
+  if ($pid) {
+    $script =~ s/__PID__/$pid/gsmx;
+  }
+  if ($tid) {
+    $script =~ s/__TID__/$tid/gsmx;
+  }
 
   return $script;
 }

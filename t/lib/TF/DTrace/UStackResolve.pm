@@ -36,7 +36,7 @@ sub test_constants {
   my @constants = qw( PMAP NM PGREP DTRACE );
 
   can_ok( $test->class_name, @constants );
-  my $obj = $test->class_name->new( execname => $test->{execname_attribute} );
+  my $obj = $test->class_name->new( { execname => $test->{execname_attribute} } );
 
   #diag $obj->dump;
 
@@ -57,7 +57,7 @@ sub test_constants {
 sub test_loop {
   my ($test) = shift;
 
-  my $obj = $test->class_name->new( execname => $test->{execname_attribute} );
+  my $obj = $test->class_name->new( { execname => $test->{execname_attribute} } );
   isa_ok( $obj->loop, 'IO::Async::Loop' );
 }
 
@@ -65,16 +65,16 @@ sub test_autoflush_dtrace_output {
   my ($test) = shift;
 
   my ($obj);
-  $obj = $test->class_name->new( execname => $test->{execname_attribute},
-                                 autoflush_dtrace_output => 0 );
+  $obj = $test->class_name->new( { execname => $test->{execname_attribute},
+                                   autoflush_dtrace_output => 0 } );
   cmp_ok( $obj->autoflush_dtrace_output, '==', 0,
          'explicit autoflush_dtrace_output setting to 0' );
 
-  $obj = $test->class_name->new( execname => $test->{execname_attribute} );
+  $obj = $test->class_name->new( { execname => $test->{execname_attribute} } );
   cmp_ok( $obj->autoflush_dtrace_output, '==', 0,
          'implicit default autoflush_dtrace_output setting to 0' );
-  $obj = $test->class_name->new( execname => $test->{execname_attribute},
-                                 autoflush_dtrace_output => 1 );
+  $obj = $test->class_name->new( { execname => $test->{execname_attribute},
+                                   autoflush_dtrace_output => 1 } );
   cmp_ok( $obj->autoflush_dtrace_output, '==', 1,
          'explicit autoflush_dtrace_output setting to 1' );
   # TODO: Actually test whether the autoflush *happens*
@@ -86,25 +86,25 @@ sub test_user_stack_frames {
 
   my ($obj);
 
-  $obj = $test->class_name->new( execname => $test->{execname_attribute} );
+  $obj = $test->class_name->new( { execname => $test->{execname_attribute} } );
   cmp_ok( $obj->user_stack_frames , '==', 100,
           'implict default user_stack_frames setting to 100' );
 
 
-  $obj = $test->class_name->new( execname => $test->{execname_attribute},
-                                 user_stack_frames => 1, );
+  $obj = $test->class_name->new( { execname => $test->{execname_attribute},
+                                   user_stack_frames => 1, } );
   cmp_ok( $obj->user_stack_frames , '==', 1,
           'explicit user_stack_frames setting to 1' );
 
   # Make sure selecting user_stack_frames outside the range dies
   dies_ok( sub {
-             $test->class_name->new( execname => $test->{execname_attribute},
-                                     user_stack_frames => 0 );
+             $test->class_name->new( { execname => $test->{execname_attribute},
+                                       user_stack_frames => 0 } );
            },
            'below user_stack_frames range should die' );
   dies_ok( sub {
-             $test->class_name->new( execname => $test->{execname_attribute},
-                                     user_stack_frames => 101 );
+             $test->class_name->new( { execname => $test->{execname_attribute},
+                                       user_stack_frames => 101 } );
            },
            'above user_stack_frames range should die' );
 }
@@ -114,7 +114,7 @@ sub test_pids {
 
   my ($obj, $pids_aref);
 
-  $obj = $test->class_name->new( execname => $test->{execname_attribute} );
+  $obj = $test->class_name->new( { execname => $test->{execname_attribute} } );
 
   $pids_aref = $obj->pids;
 
@@ -124,11 +124,21 @@ sub test_pids {
 sub test_constructor_with_pid {
   my ($test) = shift;
 
-  my ($obj, $pids_aref);
+  my ($obj);
 
-  $obj = $test->class_name->new( pid => $$ );
+  $obj = $test->class_name->new( { pid => $$ } );
 
-  is($obj->execname, !undef, "passing pid arg produces an execname");
+  cmp_ok($obj->execname, 'eq', "tests.t", "passing pid arg produces an execname");
+}
+
+sub test_default_dtrace_type {
+  my ($test) = shift;
+
+  my ($obj);
+
+  $obj = $test->class_name->new( { pid => $$ } );
+
+  cmp_ok($obj->type, 'eq', "profile", "Default DTrace type is profile");
 }
 
 1;
