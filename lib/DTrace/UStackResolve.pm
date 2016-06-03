@@ -205,6 +205,7 @@ has 'dscript_err' => (
 has 'resolved_out' => (
   is          => 'rw',
   isa         => 'Str',
+  lazy        => 1,
   builder     => '_build_resolved_out',
 );
 
@@ -417,7 +418,12 @@ sub _build_pids {
   my (@pids);
   my ($PGREP) = $self->PGREP;
   my $execname = $self->execname;
-  my @output = capture( EXIT_ANY, "$PGREP -lxf '^$execname.+?'" );
+  # NOTE: On Solaris, if on global zone, pgrep will pick up the pid with this
+  #       execname in ALL zones unless you explicitly ask for the zone *you are
+  #       in*
+  my $zonename = capture( EXIT_ANY, "/bin/zonename" );
+  chomp($zonename);
+  my @output = capture( EXIT_ANY, "$PGREP -z $zonename -lxf '^$execname.+?'" );
 
   if ($EXITVAL == 1) {
     carp "No PIDs were found that match $execname !";
