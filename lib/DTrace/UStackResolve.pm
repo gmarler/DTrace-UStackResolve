@@ -19,6 +19,7 @@ use IO::Async::Function;
 use IO::Async::Process;
 use Future;
 use CHI;
+use Digest::SHA1          qw( );
 use Tree::RB              qw( LULTEQ );
 use IPC::System::Simple   qw( capture $EXITVAL EXIT_ANY );
 use Carp;
@@ -990,5 +991,32 @@ sub pid_dynamic_library_paths {
   return [ keys %libpath_map ];
 }
 
+sub _get_pid_start_epoch {
+  my ($pid) = shift;
+
+  my ($st);
+
+  unless ($st = stat("/proc/$pid")) {
+    carp "PID file /proc/$pid missing: $!";
+    return;
+  }
+  return $st->ctime;
+}
+
+sub _file_sha1_digest {
+  my ($file) = shift;
+
+  my $fh   = IO::File->new($file,"<");
+  unless (defined $fh) {
+    carp "$file does not exist: $!";
+    return;
+  }
+  my $sha1 = Digest::SHA1->new;
+
+  $sha1->addfile($fh);
+  my $digest = $sha1->hexdigest;
+  say "SHA-1 of $file is: $digest";
+  return $digest;
+}
 
 1;
