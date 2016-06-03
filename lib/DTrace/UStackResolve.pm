@@ -7,7 +7,7 @@ use warnings;
 use Moose;
 use Moose::Util::TypeConstraints;
 use MooseX::ClassAttribute;
-use MooseX::Log4perl;
+use MooseX::Log::Log4perl;
 use namespace::autoclean;
 use File::Basename;
 use FindBin               qw( $Bin );
@@ -23,6 +23,14 @@ use Tree::RB              qw( LULTEQ );
 use IPC::System::Simple   qw( capture $EXITVAL EXIT_ANY );
 use Carp;
 use Data::Dumper;
+
+
+our %dtrace_types = (
+  "profile"         => "profile_pid.d",
+  "profile_tid"     => "profile_pid_tid.d",
+  "whatfor"         => "whatfor_pid.d",
+  "whatfor_tid"     => "whatfor_pid_tid.d",
+);
 
 #
 # TODO: This module assumes use of a Perl with 64-bit ints.  Check for this, or
@@ -147,27 +155,16 @@ has 'type'     => (
   is          => 'ro',
   isa         => 'Str',
   # TODO: Add a constraint to the available scripts
-  default     =>
-    sub {
-      my ($self) = shift;
-      if ($self->type) {
-        if (exists( $dtrace_types{$_[0]} ) ) {
-          return $dtrace_types{$_[0]};
-        } else {
-          confess "unknown DTrace Type $_[0]";
-        }
-      } else {
-        return 'profile';
-      }
-    },
+  default     => 'profile',
 );
 
-our %dtrace_types = (
-  "profile"         => "profile_pid.d",
-  "profile_tid"     => "profile_pid_tid.d",
-  "whatfor"         => "whatfor_pid.d",
-  "whatfor_tid"     => "whatfor_pid_tid.d",
-);
+sub _sanity_check_type {
+  my ($self) = @_;
+
+  confess "Invalid DTrace type specified: " . $self->type
+    unless (exists($dtrace_types{$self->type}));
+}
+
 
 # TODO: Add a test for constructor called with execname only and pid only
 override BUILDARGS => sub {
@@ -178,7 +175,6 @@ override BUILDARGS => sub {
     my $pargs_out = capture( "/bin/pargs $pid" );
     $pargs_out =~ m/^argv\[0\]:\s+(?<abs_path>[^\n]+)/gsmx;
     my $abs_path = $+{abs_path};
-    say "EXTRACTED ABSOLUTE PATH: $abs_path";
     $_[0]->{execname} = $abs_path;
   }
 
@@ -214,6 +210,8 @@ has 'resolved_out' => (
 
 sub _build_resolved_out {
   my ($self) = shift;
+
+  return "/tmp/dtrace.resolved";
 }
 
 #
@@ -221,10 +219,21 @@ sub _build_resolved_out {
 #
 has 'dscript_unresolved_out_fh' => (
   is          => 'rw',
-  isa         => 'Str',
+  isa         => 'IO::File',
+  lazy        => 1,
   default     =>
     sub {
+      my ($self) = shift;
 
+      my $file = $self->dscript_unresolved_out;
+      unless ($file) {
+        confess "DTrace Unresolved Stack File Undefined!";
+      }
+
+      my $fh = IO::File->new( $file, ">" );
+      confess "Unable to open " . $file . "$!"
+        unless ($fh);
+      return $fh;
     },
 );
 
@@ -329,6 +338,12 @@ sub _build_symbol_table_cache {
 # This is where we define the order of attribute definition
 #
 sub BUILD {
+  my ($self) = shift;
+
+  #say "Building D Script Unresolved Output Filename: " .
+  #  $self->dscript_unresolved_out;
+  $self->dscript_unresolved_out_fh;
+  $self->_sanity_check_type;
   # TODO:
   # - Get the basename of the execname
   # - Define the filename for the resolved ustacks to be written to

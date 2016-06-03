@@ -21,7 +21,7 @@ sub test_startup {
   # ... Anything you need to do...
 
   # Picking an execname that EXTREMELY likely to be running on any Solaris
-  $test->{execname_attribute} = '/usr/sbin/nscd';
+  $test->{execname_attribute} = '/usr/lib/pfexecd';
 }
 
 sub test_constructor {
@@ -139,6 +139,17 @@ sub test_default_dtrace_type {
   $obj = $test->class_name->new( { pid => $$ } );
 
   cmp_ok($obj->type, 'eq', "profile", "Default DTrace type is profile");
+}
+
+sub test_bad_dtrace_type {
+  my ($test) = shift;
+
+  dies_ok(
+    sub {
+      my $obj = $test->class_name->new( { pid => $$, type => 'bogus' } );
+    },
+    "Bad DTrace type is flagged"
+  );
 }
 
 1;
