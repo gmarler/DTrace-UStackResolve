@@ -21,7 +21,7 @@ sub test_startup {
   # ... Anything you need to do...
 
   # Picking an execname that EXTREMELY likely to be running on any Solaris
-  $test->{execname_attribute} = '/usr/lib/pfexecd';
+  $test->{execname_attribute} = '/usr/sbin/nscd';
 }
 
 sub test_constructor {
@@ -128,7 +128,7 @@ sub test_constructor_with_pid {
 
   $obj = $test->class_name->new( { pid => $$ } );
 
-  cmp_ok($obj->execname, 'eq', "tests.t", "passing pid arg produces an execname");
+  like($obj->execname, qr/perl/, "passing pid arg produces an execname");
 }
 
 sub test_default_dtrace_type {

@@ -459,6 +459,13 @@ sub _build_loop {
 sub _build_pids {
   my ($self) = shift;
 
+
+  # If our PID is already explicitly set, no need to look further.
+  #
+  if ($self->pid) {
+    return [ $self->pid ];
+  }
+
   my (@pids);
   my ($PGREP) = $self->PGREP;
   my $execname = $self->execname;
@@ -474,10 +481,7 @@ sub _build_pids {
     # TODO: should this croak or what?
   } elsif ($EXITVAL == 0) {
 
-    # TODO: If our PID is already explicitly set, we need to filter that out of
-    #       pgrep output, so we ignore all other instances of this process
-    #
-    chomp(@output);
+      chomp(@output);
 
     say "PIDS:";
     say join("\n",@output);
