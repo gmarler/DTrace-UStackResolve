@@ -46,10 +46,11 @@ our ($dscript_out, $dscript_err) =
     ( "/tmp/dscript.out", "/tmp/dscript.err" );
 our ($resolved_fname) = ( "" );
 
-my ($execname,$dtrace_type,$execpath,$exec_basename,$pid);
+my ($execname,$dtrace_type,$execpath,$exec_basename,$pid,$tid);
 
 GetOptions("execname=s"  => \$execname,
            "pid=i"       => \$pid,
+           "tid=i"       => \$tid,
            "type=s"      => \$dtrace_type,
           ) or
   die("Error in command line arguments");
@@ -703,6 +704,115 @@ WHATFOR_END
   }
 }
 
+sub build_dtrace_script_for_pid_tid {
+  my ($pid) = shift;
+  my ($tid) = shift;
+
+  my $script = <<'END';
+#pragma D option noresolve
+#pragma D option quiet
+#pragma D option ustackframes=100
+
+profile-197Hz
+/ (pid == __PID__) && (tid == __TID__) /
+{
+  @s[pid,tid,stack(),ustack()] = count();
+}
+
+tick-1sec
+{
+  printf("\n%Y\n",walltimestamp);
+
+  /* We prefix with PID:<pid> so that we can determine which PID we're working
+   * on, on the off chance that individual PIDs have set LD_LIBRARY_PATH or
+   * similar, such that some shared libraries differ, even though the
+   * execpath (fully qualified path to an executable), execname (basename)
+   * of the same executable), and SHA-1 of the executable are all
+   * identical between PIDs.
+   */
+  printa("PID:%-5d %-3d %k %k %@12u\n",@s);
+
+  trunc(@s);
+}
+
+END
+
+  my $whatfor_script = <<'WHATFOR_END';
+#pragma D option noresolve
+#pragma D option quiet
+#pragma D option ustackframes=100
+
+sched:::off-cpu
+/ (pid == __PID__) &&
+  (tid == __TID__) &&
+  curlwpsinfo &&
+  curlwpsinfo->pr_state == SSLEEP /
+{
+  /*
+   * We're sleeping.  Track our sobj type.
+   */
+  self->sobj = curlwpsinfo->pr_stype;
+  self->bedtime = timestamp;
+}
+
+sched:::off-cpu
+/ (pid == __PID__) &&
+  (tid == __TID__) &&
+  curlwpsinfo &&
+  curlwpsinfo->pr_state == SRUN /
+{
+  self->bedtime = timestamp;
+}
+
+sched:::on-cpu
+/self->bedtime && !self->sobj/
+{
+  @["preempted",pid,tid,stack(),ustack()] = quantize(timestamp - self->bedtime);
+  self->bedtime = 0;
+}
+
+sched:::on-cpu
+/self->sobj/
+{
+  @[self->sobj == SOBJ_MUTEX ? "kernel-level lock" :
+    self->sobj == SOBJ_RWLOCK ? "rwlock" :
+    self->sobj == SOBJ_CV ? "condition variable" :
+    self->sobj == SOBJ_SEMA ? "semaphore" :
+    self->sobj == SOBJ_USER ? "user-level lock" :
+    self->sobj == SOBJ_USER_PI ? "user-level prio-inheriting lock" :
+    self->sobj == SOBJ_SHUTTLE ? "shuttle" : "unknown",
+    pid,tid,stack(),ustack()] = quantize(timestamp - self->bedtime);
+
+  self->sobj = 0;
+  self->bedtime = 0;
+}
+
+tick-1sec
+{
+  printf("\n%Y\n",walltimestamp);
+
+  printf("%-32s %5s %-3s %-12s\n","SOBJ OR PREEMPTED","PID","TID","LATENCY(ns)");
+  printa("%-32s %5d %-3d %-@12u %k %k\n",@);
+
+  trunc(@);
+}
+
+WHATFOR_END
+
+  $script =~ s/__PID__/$pid/gsmx;
+  $script =~ s/__TID__/$tid/gsmx;
+  $whatfor_script =~ s/__PID__/$pid/gsmx;
+  $whatfor_script =~ s/__TID__/$tid/gsmx;
+
+  if ($dtrace_type eq "profile") {
+    return $script;
+  } elsif ($dtrace_type eq "off-cpu") {
+    return $whatfor_script;
+  } else {
+    die "--type=$dtrace_type is INVALID";
+  }
+}
+
 
 #
 # Given a DTrace script, return the filehandle for a temporary filename that
@@ -728,7 +838,11 @@ sub start_dtrace {
   if (exists($arg_href->{execname})) {
     $script = build_dtrace_script_for_execname($arg_href->{execname});
   } elsif (exists($arg_href->{pid})) {
-    $script = build_dtrace_script_for_pid($arg_href->{pid});
+    if (defined($arg_href->{tid})) {
+      $script = build_dtrace_script_for_pid_tid($arg_href->{pid}, $arg_href->{tid});
+    } else {
+      $script = build_dtrace_script_for_pid($arg_href->{pid});
+    }
   } else {
     die "Unable to build a DTrace script without a pid or execname!";
   }
@@ -794,7 +908,7 @@ sub start_dtrace {
 if ($execname) {
   start_dtrace( { execname => basename($execname) } );
 } else {
-  start_dtrace( { pid => $pid } );
+  start_dtrace( { pid => $pid, tid => $tid } );
 }
 
 sub start_stack_resolve {

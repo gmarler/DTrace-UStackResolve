@@ -146,8 +146,27 @@ has 'tid'      => (
 has 'type'     => (
   is          => 'ro',
   isa         => 'Str',
-  default     => 'profile',
   # TODO: Add a constraint to the available scripts
+  default     =>
+    sub {
+      my ($self) = shift;
+      if ($self->type) {
+        if (exists( $dtrace_types{$_[0]} ) ) {
+          return $dtrace_types{$_[0]};
+        } else {
+          confess "unknown DTrace Type $_[0]";
+        }
+      } else {
+        return 'profile';
+      }
+    },
+);
+
+our %dtrace_types = (
+  "profile"         => "profile_pid.d",
+  "profile_tid"     => "profile_pid_tid.d",
+  "whatfor"         => "whatfor_pid.d",
+  "whatfor_tid"     => "whatfor_pid_tid.d",
 );
 
 # TODO: Add a test for constructor called with execname only and pid only
@@ -400,7 +419,7 @@ sub _build_pids {
                   $+{pid}; } @output;
     #say Dumper( \@pids );
   } else {
-    die "pgrep returned $EXITVAL, which is a fatal exception for us";
+    confess "pgrep returned $EXITVAL, which is a fatal exception for us";
   }
 
   return \@pids;
@@ -688,9 +707,9 @@ sub _start_dtrace_capture {
   say "Going to execute: $cmd";
 
   my $dscript_output_fh = IO::File->new("/bb/pm/data/dscript.out", ">")
-    or die "Unable to open /bb/pm/data/dscript.out for writing: $!";;
+    or confess "Unable to open /bb/pm/data/dscript.out for writing: $!";;
   my $dscript_stderr_fh = IO::File->new("/bb/pm/data/dscript.err", ">")
-    or die "Unable to open /bb/pm/data/dscript.err for writing: $!";;
+    or confess "Unable to open /bb/pm/data/dscript.err for writing: $!";;
 
   my $dtrace_process =
     IO::Async::Process->new(
@@ -812,7 +831,7 @@ sub _resolve_symbol {
           $line .= " [SYMBOL TABLE LOOKUP FAILED]";
         }
       } else {
-        die "WHAT THE HECK HAPPENED???";
+        confess "WHAT THE HECK HAPPENED???";
       }
     } else {
       $line .= " [NO SYMBOL TABLE FOR $keyfile]";
