@@ -106,6 +106,7 @@ has 'loop' => (
   is          => 'ro',
   isa         => 'IO::Async::Loop',
   builder     => '_build_loop',
+  lazy        => 1,
 );
 
 =method new()
@@ -132,6 +133,7 @@ The constructor takes the following attributes:
 =cut
 
 has 'execname' => (
+  # NOTE: this will be an absolute path to the execname
   is          => 'ro',
   isa         => 'Str',
   #builder     => '_build_execname',
@@ -172,11 +174,24 @@ override BUILDARGS => sub {
   my $class = shift;
 
   if (exists($_[0]->{pid})) {
+    # NOTE: The true absolute path to the executable is contained in procfs;
+    #       however, the name the process knows itself as, and which it will
+    #       report itself as in ustack before a colon is only visible via pargs,
+    #       so we probably need to store both
     my $pid = $_[0]->{pid};
+    my $a_out = "/proc/$pid/path/a.out";
+    my ($abs_path) = readlink($a_out);
+    if (not defined($abs_path)) {
+      carp "could not open $a_out: $!";
+    } else {
+      $_[0]->{execname} = $abs_path;
+    }
+
     my $pargs_out = capture( "/bin/pargs $pid" );
-    $pargs_out =~ m/^argv\[0\]:\s+(?<abs_path>[^\n]+)/gsmx;
-    my $abs_path = $+{abs_path};
-    $_[0]->{execname} = $abs_path;
+    say "PARGS OUT: $pargs_out";
+    $pargs_out =~ m/^argv\[0\]:\s+(?<personal_execname>[^\n]+)/gsmx;
+    my $personal_execname = $+{personal_execname};
+    $_[0]->{personal_execname} = $personal_execname;
   }
 
   return super;
@@ -372,6 +387,8 @@ sub BUILD {
   #  $self->dscript_unresolved_out;
   $self->dscript_unresolved_out_fh;
   $self->_sanity_check_type;
+  $self->loop;
+  $self->pids;
   # TODO:
   # - Get the basename of the execname
   # - Define the filename for the resolved ustacks to be written to
@@ -419,9 +436,9 @@ sub _build_loop {
 
   my $loop = IO::Async::Loop->new;
 
-  # my $sha1_func = IO::Async::Function->new(
-  #   code        => \&file_sha1_digest,
-  # );
+  my $sha1_func = IO::Async::Function->new(
+    code        => \&_file_sha1_digest,
+  );
 
   my $pmap_func = IO::Async::Function->new(
     code        => \&pid_dynamic_library_paths
@@ -432,7 +449,7 @@ sub _build_loop {
   #);
 
 
-  # $loop->add( $sha1_func );
+  $loop->add( $sha1_func );
   $loop->add( $pmap_func );
   #$loop->add( $gen_symtab_func );
 
@@ -450,22 +467,23 @@ sub _build_pids {
   #       in*
   my $zonename = capture( EXIT_ANY, "/bin/zonename" );
   chomp($zonename);
-  my @output = capture( EXIT_ANY, "$PGREP -z $zonename -lxf '^$execname.+?'" );
+  my @output = capture( EXIT_ANY, "$PGREP -z $zonename -lxf '^$execname(.+)?'" );
 
   if ($EXITVAL == 1) {
-    carp "No PIDs were found that match $execname !";
+    carp "No PIDs were found that match [$execname] !";
     # TODO: should this croak or what?
   } elsif ($EXITVAL == 0) {
 
+    # TODO: If our PID is already explicitly set, we need to filter that out of
+    #       pgrep output, so we ignore all other instances of this process
+    #
     chomp(@output);
 
     say "PIDS:";
     say join("\n",@output);
-    #say Dumper( \@output );
     @pids = map { my $line = $_;
                   $line =~ m/^(?:\s+)?(?<pid>\d+)\s+/;
                   $+{pid}; } @output;
-    #say Dumper( \@pids );
   } else {
     confess "pgrep returned $EXITVAL, which is a fatal exception for us";
   }
