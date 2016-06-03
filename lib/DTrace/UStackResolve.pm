@@ -290,6 +290,15 @@ has 'direct_lookup_cache' => (
   lazy        => 1,
 );
 
+has 'direct_symbol_cache' => (
+  init_arg    => undef,   # don't allow specifying in the constructor
+  is          => 'ro',
+  isa         => 'CHI',
+  builder     => '_build_direct_symbol_cache',
+  lazy        => 1,
+);
+
+
 has 'symbol_table_cache' => (
   init_arg    => undef,   # don't allow specifying in the constructor
   is          => 'ro',
@@ -323,15 +332,32 @@ sub _build_symbol_table_cache {
 
   # TODO: Allow constructor to pass in a directory to hold the caches
   CHI->new(
-            #driver       => 'BerkeleyDB',
-            driver       => 'File',
+            driver       => 'BerkeleyDB',
             cache_size   => '1024m',
             #root_dir     => '/bb/pm/data/symbol_tables',
             root_dir     => '/tmp/symbol_tables',
             namespace    => 'symbol_tables',
+            global       => 0,
             on_get_error => 'warn',
             on_set_error => 'warn',
             l1_cache => { driver => 'RawMemory', global => 0, max_size => 64*1024*1024 }
+           );
+}
+
+sub _build_direct_symbol_cache {
+  my ($self) = shift;
+
+  # TODO: Allow constructor to pass in a directory to hold the caches
+  CHI->new(
+            driver       => 'BerkeleyDB',
+            cache_size   => '1024m',
+            #root_dir     => '/bb/pm/data/symbol_tables',
+            root_dir     => '/tmp/symbol_tables',
+            namespace    => 'direct_symbol',
+            global       => 0,
+            on_get_error => 'warn',
+            on_set_error => 'warn',
+            l1_cache => { driver => 'RawMemory', global => 0, max_size => 128*1024*1024 }
            );
 }
 
