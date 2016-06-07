@@ -590,74 +590,46 @@ sub _build_pids {
 # TODO: Turn this from a normal builder into a Future
 sub _build_symbol_table {
   my ($self) = shift;
-  # TODO: fix this, as we'll need to get these from other attributes instead
-  my ($exec_or_lib_path, $exec_or_lib_sha1) = @_;
 
-  my ($NM) = $self->NM;
+  my ($symbol_table_cache)  = $self->$symbol_table_cache;
+  my (@absolute_file_paths) = $self->dynamic_library_paths;
+  my ($gen_symtab_func)     = $self->gen_symtab_func;
 
+  # Look for the symbol tables missing from the cache
+  my @missing_symtab_cache_items =
+    grep { not defined($symbol_table_cache->get(basename($_))); }
+    $execpath,         # Don't forget to add the executable path itself
+    @absolute_file_paths;
 
-  # $start_offset is the offset of the _START_ symbol in a library or exec
-  my ($symtab_aref,$symcount,$_start_offset);
+  # Create the missing cache items
+  my $symtabs_f = fmap {
+    my ($absolute_path) = shift;
+    say "Creating symbol table for $absolute_path";
+    Future->done(
+        $absolute_path => $gen_symtab_func->call( args => [ $absolute_path ] )->get
+    );
+  } foreach => [
+                 @missing_symtab_cache_items
+               ], concurrent => 2;
 
-  # TODO: Check whether data is in cache; return immediately if it is
+  my %symtabs = $symtabs_f->get;
 
-  say "Building symtab for $exec_or_lib_path";
-  # TODO: Convert to IO::Async::Process
-  my $out       = capture( "$NM -C -t d $exec_or_lib_path" );
-
-  say "CAPTURED " . length($out) . " BYTES OF OUTPUT FROM nm FOR $exec_or_lib_path";
-
-  say "Parsing nm output for: $exec_or_lib_path";
-  while ($out =~ m/^ [^|]+                           \|
-                     (?:\s+)? (?<offset>\d+)         \| # Offset from base
-                     (?:\s+)? (?<size>\d+)           \| # Size
-                     (?<type>(?:FUNC|OBJT)) (?:\s+)? \| # A Function (or _START_ OBJT)
-                     [^|]+                           \|
-                     [^|]+                           \|
-                     [^|]+                           \|
-                     (?<funcname>[^\n]+)    \n
-                  /gsmx) {
-    my ($val);
-    #say "MATCHED: $+{funcname}";
-    if (not defined($_start_offset)) {
-      if ($+{funcname} eq "_START_") {
-        say "FOUND _START_ OFFSET OF: $+{offset}";
-        $_start_offset = $+{offset};
-        next;
-      }
-    }
-
-    # skip all types that aren't functions, or weren't already handled as
-    # the special _START_ OBJT symbol above
-    next if ($+{type} eq "OBJT");
-
-    $val = [ $+{offset}, $+{size}, $+{funcname} ];
-
-    push @$symtab_aref, $val;
-    if (($symcount++ % 1000) == 0) {
-      say "$exec_or_lib_path: PARSED $symcount SYMBOLS";
+  say "SYMBOL TABLE KEYS:";
+  foreach my $symtab_path (keys %symtabs) {
+    # if (basename($symtab_path) eq "libperl.so.5.22.0") {
+    #   say Dumper($symtabs{$symtab_path});
+    # }
+    unless (defined($symbol_table_cache
+                    ->set(basename($symtab_path),
+                          $symtabs{$symtab_path}, '7 days'))) {
+      say "FAILED to store KEY basename($symtab_path) in CACHE!"
     }
   }
-  # ASSERT that $_start_offset is defined
-  assert_defined_variable($_start_offset);
 
-  if ($_start_offset == 0) {
-    say "NO NEED TO ADJUST OFFSETS FOR SYMBOLS IN: $exec_or_lib_path";
-  } else {
-    say "ADJUSTING OFFSETS FOR SYMBOLS IN: $exec_or_lib_path, BY $_start_offset";
-    foreach my $symval (@$symtab_aref) {
-      $symval->[0] -= $_start_offset;
-    }
-  }
-  # Sort the symbol table by starting address before returning it
-  say "SORTING SYMBOL TABLE: $exec_or_lib_path";
-  my (@sorted_symtab) = sort {$a->[0] <=> $b->[0] } @$symtab_aref;
+  say "SYMBOL TABLE KEYS IN CACHE:";
+  say join("\n", $symbol_table_cache->get_keys);
 
-  # TODO: Add to cache with:
-  #       KEY: { exec_or_lib_path => $exec_or_lib_path, sha1 => $exec_or_lib_sha1 }
-
-  say "RETURNING SORTED SYMBOL TABLE FOR: $exec_or_lib_path";
-  return \@sorted_symtab;
+  return \%symtabs;
 }
 
 
@@ -1195,7 +1167,6 @@ sub _gen_symbol_table {
 
   say "RETURNING SORTED SYMBOL TABLE FOR: $exec_or_lib_path";
   return \@sorted_symtab;
-
 }
 
 1;
