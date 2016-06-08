@@ -9,7 +9,7 @@ use Moose::Util::TypeConstraints;
 use MooseX::ClassAttribute;
 use MooseX::Log::Log4perl;
 use namespace::autoclean;
-use File::Basename;
+use File::Basename        qw( basename );
 use File::stat;
 use FindBin               qw( $Bin );
 use IO::File;
@@ -344,7 +344,7 @@ sub _build_dynamic_library_paths {
 has 'symbol_table' => (
   init_arg    => undef,   # don't allow specifying in the constructor
   is          => 'rw',
-  isa         => 'HashRef[Str]',
+  isa         => 'HashRef[ArrayRef]',
   builder     => '_build_symbol_table',
   lazy        => 1,
   clearer     => '_clear_symbol_table',
@@ -456,9 +456,11 @@ sub BUILD {
   $self->pids;
   $self->pid_starttime;
   $self->dynamic_library_paths;
+  say "GENERATING SYMBOL TABLE";
   $self->symbol_table;
   # TODO:
   # - Get the basename of the execname
+  say "GENERATE personal execname";
   $self->personal_execname;
   # - Define the filename for the resolved ustacks to be written to
 }
@@ -603,7 +605,7 @@ sub _build_symbol_table {
   my ($self) = shift;
 
   my ($symbol_table_cache)  = $self->symbol_table_cache;
-  my (@absolute_file_paths) = $self->dynamic_library_paths;
+  my (@absolute_file_paths) = @{$self->dynamic_library_paths};
   my ($gen_symtab_func)     = $self->gen_symtab_func;
   my ($execpath)            = $self->execname;
 
@@ -617,8 +619,9 @@ sub _build_symbol_table {
   my $symtabs_f = fmap {
     my ($absolute_path) = shift;
     say "Creating symbol table for $absolute_path";
+    # we cannot pass $self across the boundary as args
     Future->done(
-        $absolute_path => $gen_symtab_func->call( args => [ $absolute_path ] )->get
+        $absolute_path => $gen_symtab_func->call( args => [ $self->NM, $absolute_path ] )->get
     );
   } foreach => [
                  @missing_symtab_cache_items
@@ -1113,14 +1116,13 @@ sub _gen_symbol_table {
   # This means that we can use the symbol table with base address assumed to be
   # implicitly 0 to resolve symbols without further work.
   #
-  my ($self, $exec_or_lib_path, $exec_or_lib_sha1) = @_;
+  my ($NM, $exec_or_lib_path, $exec_or_lib_sha1) = @_;
   # $start_offset is the offset of the _START_ symbol in a library or exec
   my ($symtab_aref,$symcount,$_start_offset);
 
   # TODO: Check whether data is in cache; return immediately if it is
 
   say "Building symtab for $exec_or_lib_path";
-  my ($NM) = $self->NM;
   # TODO: Convert to IO::Async::Process
   my $out       = capture( "$NM -C -t d $exec_or_lib_path" );
 
