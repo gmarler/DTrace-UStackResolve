@@ -332,7 +332,7 @@ sub _build_dynamic_library_paths {
     uniq
     map { @$_ } @file_paths;
 
-  say Dumper( \@file_paths );
+  #say Dumper( \@file_paths );
   say Dumper( \@absolute_file_paths );
   return \@absolute_file_paths;
 }
@@ -408,7 +408,10 @@ sub _build_symbol_table_cache {
             global       => 0,
             on_get_error => 'warn',
             on_set_error => 'warn',
-            l1_cache => { driver => 'RawMemory', global => 0, max_size => 64*1024*1024 }
+            l1_cache     => { driver   => 'RawMemory',
+                              global   => 0,
+                              max_size => 64*1024*1024,
+                            }
            );
 }
 
@@ -425,7 +428,10 @@ sub _build_direct_symbol_cache {
             global       => 0,
             on_get_error => 'warn',
             on_set_error => 'warn',
-            l1_cache => { driver => 'RawMemory', global => 0, max_size => 128*1024*1024 }
+            l1_cache     => { driver   => 'RawMemory',
+                              global   => 0,
+                              max_size => 128*1024*1024,
+                            }
            );
 }
 
@@ -446,6 +452,7 @@ sub BUILD {
   $self->pids;
   $self->pid_starttime;
   $self->dynamic_library_paths;
+  $self->symbol_table;
   # TODO:
   # - Get the basename of the execname
   $self->personal_execname;
@@ -591,9 +598,10 @@ sub _build_pids {
 sub _build_symbol_table {
   my ($self) = shift;
 
-  my ($symbol_table_cache)  = $self->$symbol_table_cache;
+  my ($symbol_table_cache)  = $self->symbol_table_cache;
   my (@absolute_file_paths) = $self->dynamic_library_paths;
   my ($gen_symtab_func)     = $self->gen_symtab_func;
+  my ($execpath)            = $self->execname;
 
   # Look for the symbol tables missing from the cache
   my @missing_symtab_cache_items =
@@ -616,9 +624,6 @@ sub _build_symbol_table {
 
   say "SYMBOL TABLE KEYS:";
   foreach my $symtab_path (keys %symtabs) {
-    # if (basename($symtab_path) eq "libperl.so.5.22.0") {
-    #   say Dumper($symtabs{$symtab_path});
-    # }
     unless (defined($symbol_table_cache
                     ->set(basename($symtab_path),
                           $symtabs{$symtab_path}, '7 days'))) {
