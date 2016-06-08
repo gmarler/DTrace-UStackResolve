@@ -78,6 +78,10 @@ subtype 'UStackDepthRange',
   as 'Int',
   where { $_ >= 1 && $_ <= 100 };
 
+subtype 'CHI',
+  as 'Object',
+  where { blessed($_) =~ /^CHI::/ };
+
 # Class Attribute Constants
 class_has 'PMAP' => (
   init_arg    => undef,
