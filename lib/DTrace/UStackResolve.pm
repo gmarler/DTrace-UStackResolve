@@ -11,6 +11,8 @@ use MooseX::Log::Log4perl;
 use namespace::autoclean;
 use File::Basename        qw( basename );
 use File::stat;
+use File::ShareDir        qw( :ALL );
+use File::Temp            qw();
 use FindBin               qw( $Bin );
 use IO::File;
 use IO::Async;
@@ -189,35 +191,15 @@ sub _sanity_check_type {
     unless (exists($dtrace_types{$self->type}));
 }
 
+#
+# INPUT FILE ATTRIBUTES
+#
+has 'dtrace_template' => (
+  is          => 'ro',
+  isa         => 'Str',
+  builder     => '_build_dtrace_template',
+);
 
-# TODO: Add a test for constructor called with execname only and pid only
-override BUILDARGS => sub {
-  my $class = shift;
-
-  if (exists($_[0]->{pid})) {
-    # NOTE: The true absolute path to the executable is contained in procfs;
-    #       however, the name the process knows itself as, and which it will
-    #       report itself as in ustack before a colon is only visible via pargs,
-    #       so we probably need to store both
-    my $pid = $_[0]->{pid};
-    my $a_out = "/proc/$pid/path/a.out";
-    my ($abs_path) = readlink($a_out);
-    if (not defined($abs_path)) {
-      carp "could not open $a_out: $!";
-    } else {
-      $_[0]->{execname} = $abs_path;
-    }
-
-    my $pargs_out = capture( "/bin/pargs $pid" );
-    say "PARGS OUT: $pargs_out";
-    $pargs_out =~ m/^argv\[0\]:\s+(?<personal_execname>[^\n]+)/gsmx;
-    my $personal_execname = $+{personal_execname};
-    # NOTE: Storing the basename only
-    $_[0]->{personal_execname} = basename($personal_execname);
-  }
-
-  return super;
-};
 
 #
 # OUTPUT FILE NAMES
@@ -316,6 +298,21 @@ has 'dynamic_library_paths' => (
   clearer     => '_clear_dynamic_library_paths',
   predicate   => '_has_dynamic_library_paths',
 );
+
+=head2  _build_dynamic_library_paths
+
+This function processes the output of the pmap command on the specified pid
+producing the absolute path of each dynamic library the pid has loaded.
+
+This is used as the list of libraries from which to extract symbol tables.
+
+This could also be done, possibly more efficiently, via pldd on the pid.
+
+ldd on a non-running binary is sadly not sufficient for this, as won't go
+through the whole library resolution process, and thus some libraries will be
+omitted, as they're not yet known to be needed; so that's out.
+
+=cut
 
 sub _build_dynamic_library_paths {
   my ($self) = shift;
@@ -458,6 +455,35 @@ sub _build_direct_lookup_cache {
 
   return \%symtab_trees;
 }
+
+# TODO: Add a test for constructor called with execname only and pid only
+override BUILDARGS => sub {
+  my $class = shift;
+
+  if (exists($_[0]->{pid})) {
+    # NOTE: The true absolute path to the executable is contained in procfs;
+    #       however, the name the process knows itself as, and which it will
+    #       report itself as in ustack before a colon is only visible via pargs,
+    #       so we probably need to store both
+    my $pid = $_[0]->{pid};
+    my $a_out = "/proc/$pid/path/a.out";
+    my ($abs_path) = readlink($a_out);
+    if (not defined($abs_path)) {
+      carp "could not open $a_out: $!";
+    } else {
+      $_[0]->{execname} = $abs_path;
+    }
+
+    my $pargs_out = capture( "/bin/pargs $pid" );
+    say "PARGS OUT: $pargs_out";
+    $pargs_out =~ m/^argv\[0\]:\s+(?<personal_execname>[^\n]+)/gsmx;
+    my $personal_execname = $+{personal_execname};
+    # NOTE: Storing the basename only
+    $_[0]->{personal_execname} = basename($personal_execname);
+  }
+
+  return super;
+};
 
 #
 # This is where we define the order of attribute definition
@@ -666,153 +692,33 @@ sub _build_symbol_table {
 }
 
 
-=head1 BUILT IN DTrace SCRIPTS
+=head1 SELECTING TYPE OF DTrace SCRIPT
 
-These are private methods, which are used to select what kind of DTrace script t
-
-=method _ustack_dtrace
-
-The most basic DTrace, which shows the following data every second:
+Specifying the <C>type<C> attribute will allow selection of the kind of DTrace
+to script to activate.
 
 =for :list
-* Timestamp
-* PID
-* kernel stack (resolved)
-* Unresolved user stack
-* Occurrence count for the above tuple for that time interval
-
-The unresolved user stacks will be resolved by this module.
+* profile
+  197Hz profile for all threads in a PID
+* profile_tid
+  197Hz profile for a specific threads in a PID
+* whatfor
+  Why each thread in a PID goes off CPU
+* whatfor_tid
+  Why a specific thread in a PID goes off CPU
 
 =cut
 
-sub _ustack_dtrace {
+=method _build_dtrace_template
+
+Private function that selects the most appropriate DTrace script template from
+those available, based on <C>type<C> attribute, among others.
+
+=cut
+
+sub _build_dtrace_template {
   my ($self) = shift;
-
-    my $script = <<'END';
-#pragma D option noresolve
-#pragma D option quiet
-#pragma D option ustackframes=100
-
-profile-197Hz
-/ execname == "__EXECNAME__" /
-{
-  @s[pid,tid,stack(),ustack(__USTACK_FRAMES__)] = count();
 }
-
-tick-1sec
-{
-  printf("\n%Y\n",walltimestamp);
-
-  /* We prefix with PID:<pid> so that we can determine which PID we're working
-   * on, on the off chance that individual PIDs have set LD_LIBRARY_PATH or
-   * similar, such that some shared libraries differ, even though the
-   * execpath (fully qualified path to an executable), execname (basename)
-   * of the same executable), and SHA-1 of the executable are all
-   * identical between PIDs.
-   */
-  printa("PID:%-5d %-3d %k %k %@12u\n",@s);
-
-  trunc(@s);
-}
-
-END
-
-    $script = $self->_replace_DTrace_keywords($script);
-    return $script;
-}
-
-=method _whatfor_DTrace
-
-This DTrace provides kernel / user stack as a thread goes off CPU (goes to
-sleep).
-
-It provides, per second:
-
-=for :list
-* Timestamp
-* PID
-* TID (Thread ID)
-* Reason thread went off CPU
-* kernel stack (resolved) as thread went off CPU
-* Unresolved user stack as thread went off CPU
-* Quantized histogram indicating how long the thread stayed off CPU
-
-=cut
-
-sub _whatfor_DTrace {
-  my ($self) = @_;
-
-  my $script = <<'WHATFOR_END';
-#pragma D option noresolve
-#pragma D option quiet
-#pragma D option ustackframes=100
-
-sched:::off-cpu
-/ execname == "__EXECNAME__" &&
-  curlwpsinfo &&
-  curlwpsinfo->pr_state == SSLEEP /
-{
-  /*
-   * We're sleeping.  Track our sobj type.
-   */
-  self->sobj = curlwpsinfo->pr_stype;
-  self->bedtime = timestamp;
-}
-
-sched:::off-cpu
-/ execname == "__EXECNAME__" &&
-  curlwpsinfo &&
-  curlwpsinfo->pr_state == SRUN /
-{
-  self->bedtime = timestamp;
-}
-
-sched:::on-cpu
-/self->bedtime && !self->sobj/
-{
-  @["preempted",pid,tid] = quantize(timestamp - self->bedtime);
-  @sdata[pid,tid,stack(),ustack(__USTACK_FRAMES__)] = count();
-  self->bedtime = 0;
-}
-
-sched:::on-cpu
-/self->sobj/
-{
-  @[self->sobj == SOBJ_MUTEX ? "kernel-level lock" :
-    self->sobj == SOBJ_RWLOCK ? "rwlock" :
-    self->sobj == SOBJ_CV ? "condition variable" :
-    self->sobj == SOBJ_SEMA ? "semaphore" :
-    self->sobj == SOBJ_USER ? "user-level lock" :
-    self->sobj == SOBJ_USER_PI ? "user-level prio-inheriting lock" :
-    self->sobj == SOBJ_SHUTTLE ? "shuttle" : "unknown",
-    pid,tid] = quantize(timestamp - self->bedtime);
-  @sdata[pid,tid,stack(),ustack(__USTACK_FRAMES__)] = count();
-
-  self->sobj = 0;
-  self->bedtime = 0;
-}
-
-tick-1sec
-{
-  printf("\n%Y\n",walltimestamp);
-
-  printf("%-32s %5s %-3s %-12s\n","SOBJ OR PREEMPTED","PID","TID","LATENCY(ns)");
-  printa("%-32s %5d %-3d %-@12u\n",@);
-
-  trunc(@sdata,32);
-  /* printa("PID:%-5d %-3d %k %k %@12u\n",@sdata); */
-  printa("%5d %-3d %k %k %@12u\n",@sdata);
-
-  trunc(@);
-  trunc(@sdata);
-}
-
-WHATFOR_END
-
-    $script = $self->_replace_DTrace_keywords($script);
-    return $script;
-}
-
 
 
 =method _replace_DTrace_keywords
