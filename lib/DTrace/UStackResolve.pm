@@ -182,6 +182,7 @@ has 'type'     => (
   isa         => 'Str',
   # TODO: Add a constraint to the available scripts
   default     => 'profile',
+  lazy        => 1,
 );
 
 sub _sanity_check_type {
@@ -198,6 +199,7 @@ has 'dtrace_template' => (
   is          => 'ro',
   isa         => 'Str',
   builder     => '_build_dtrace_template',
+  lazy        => 1,
 );
 
 
@@ -210,6 +212,7 @@ has 'dscript_unresolved_out' => (
   isa         => 'Str',
   #builder     => '_build_dscript_unresolved_out',
   default     => "/tmp/dscript.out",
+  lazy        => 1,
 );
 
 # DTrace script Error output
@@ -218,6 +221,7 @@ has 'dscript_err' => (
   isa         => 'Str',
   #builder     => '_build_dscript_err',
   default     => "/tmp/dscript.err",
+  lazy        => 1,
 );
 
 # DTrace output with resolved ustacks
@@ -505,6 +509,8 @@ sub BUILD {
   say "GENERATING SYMBOL TABLE";
   $self->symbol_table;
   $self->direct_lookup_cache;
+  $self->type;
+  $self->dtrace_template;
   # TODO:
   # - Get the basename of the execname
   say "GENERATE personal execname";
@@ -718,6 +724,20 @@ those available, based on <C>type<C> attribute, among others.
 
 sub _build_dtrace_template {
   my ($self) = shift;
+
+  my ($type) = $self->type;
+  say "DTrace Type: $type";
+  my $template = $dtrace_types{$type};
+
+  say "DIST FILE:   " . dist_file('DTrace-UStackResolve', $template);
+  #say "MODULE FILE: " . module_file(__PACKAGE__, $template);
+  #say "CLASS FILE:  " . class_file(__PACKAGE__, $template);
+  #say "DIST DIR:    " . dist_dir('DTrace-UStackResolve');
+  #say "MODULE DIR:  " . module_dir(__PACKAGE__);
+  my ($shared_dir) = dist_file('DTrace-UStackResolve', $template);
+  say "DTrace Template File: $shared_dir";
+
+  return "NOPATH";
 }
 
 
