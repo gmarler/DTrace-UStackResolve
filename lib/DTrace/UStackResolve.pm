@@ -351,17 +351,6 @@ has 'symbol_table' => (
   predicate   => '_has_symbol_table',
 );
 
-#
-# This should get built at the end of building/loading the symbol_table_cache
-#
-has 'direct_lookup_cache' => (
-  init_arg    => undef,   # don't allow specifying in the constructor
-  is          => 'rw',
-  isa         => 'HashRef[Tree::RB]',
-  default     => sub { return { }; },
-  lazy        => 1,
-);
-
 has 'direct_symbol_cache' => (
   init_arg    => undef,   # don't allow specifying in the constructor
   is          => 'ro',
@@ -376,6 +365,17 @@ has 'symbol_table_cache' => (
   is          => 'ro',
   isa         => 'CHI',
   builder     => '_build_symbol_table_cache',
+  lazy        => 1,
+);
+
+#
+# This should get built at the end of building/loading the symbol_table_cache
+#
+has 'direct_lookup_cache' => (
+  init_arg    => undef,   # don't allow specifying in the constructor
+  is          => 'rw',
+  isa         => 'HashRef[Tree::RB]',
+  builder     => '_build_direct_lookup_cache',
   lazy        => 1,
 );
 
@@ -439,6 +439,26 @@ sub _build_direct_symbol_cache {
            );
 }
 
+sub _build_direct_lookup_cache {
+  my ($self) = shift;
+
+  my ($symbol_table_cache) = $self->symbol_table_cache;
+
+  say "CREATING RED-BLACK DIRECT LOOKUP SYMBOL TREE";
+  my %symtab_trees;
+  foreach my $key ($symbol_table_cache->get_keys) {
+    my $symtab_aref = $symbol_table_cache->get($key);
+    my $tree = Tree::RB->new();
+    foreach my $entry (@$symtab_aref) {
+      $tree->put( $entry->[0], $entry );
+    }
+
+    $symtab_trees{$key} = $tree;
+  }
+
+  return \%symtab_trees;
+}
+
 #
 # This is where we define the order of attribute definition
 #
@@ -458,6 +478,7 @@ sub BUILD {
   $self->dynamic_library_paths;
   say "GENERATING SYMBOL TABLE";
   $self->symbol_table;
+  $self->direct_lookup_cache;
   # TODO:
   # - Get the basename of the execname
   say "GENERATE personal execname";
