@@ -195,13 +195,32 @@ sub _sanity_check_type {
 #
 # INPUT FILE ATTRIBUTES
 #
-has 'dtrace_template' => (
+# The contents of the DTrace template we will use
+has 'dtrace_template_contents' => (
   is          => 'ro',
   isa         => 'Str',
-  builder     => '_build_dtrace_template',
+  builder     => '_build_dtrace_template_contents',
   lazy        => 1,
 );
 
+# The contents of the DTrace script after the template has had it's keywords
+# resolved
+has 'dtrace_script_contents' => (
+  is          => 'ro',
+  isa         => 'Str',
+  builder     => '_build_dtrace_script_contents',
+  lazy        => 1,
+);
+
+# The filehandle for the temporary file that contains the DTrace script we've
+# build from a template - DTrace will be handed the filename of this file to
+# generated the unresolved output
+has 'dtrace_script_fh' => (
+  is          => 'ro',
+  isa         => 'File::Temp',
+  builder     => '_build_dtrace_script_fh',
+  lazy        => 1,
+);
 
 #
 # OUTPUT FILE NAMES
@@ -510,11 +529,11 @@ sub BUILD {
   $self->symbol_table;
   $self->direct_lookup_cache;
   $self->type;
-  $self->dtrace_template;
-  # TODO:
-  # - Get the basename of the execname
+  $self->dtrace_template_contents;
   say "GENERATE personal execname";
   $self->personal_execname;
+  $self->dtrace_script_contents;
+  # TODO:
   # - Define the filename for the resolved ustacks to be written to
 }
 
@@ -715,14 +734,15 @@ to script to activate.
 
 =cut
 
-=method _build_dtrace_template
+=method _build_dtrace_template_contents
 
 Private function that selects the most appropriate DTrace script template from
-those available, based on <C>type<C> attribute, among others.
+those available, based on <C>type<C> attribute, among others, and returns it's
+raw contents for later processing
 
 =cut
 
-sub _build_dtrace_template {
+sub _build_dtrace_template_contents {
   my ($self) = shift;
 
   my ($type) = $self->type;
@@ -734,12 +754,30 @@ sub _build_dtrace_template {
   #say "CLASS FILE:  " . class_file(__PACKAGE__, $template);
   #say "DIST DIR:    " . dist_dir('DTrace-UStackResolve');
   #say "MODULE DIR:  " . module_dir(__PACKAGE__);
-  my ($shared_dir) = dist_file('DTrace-UStackResolve', $template);
-  say "DTrace Template File: $shared_dir";
+  my ($template_path) = dist_file('DTrace-UStackResolve', $template);
+  say "DTrace Template File: $template_path";
 
-  return "NOPATH";
+  my $fh = IO::File->new($template_path, "<");
+  my $c = do { local $/; <$fh>; };
+
+  return $c
 }
 
+=method _build_dtrace_script_contents
+
+Private function that takes the DTrace template contents and resolves the
+keywords, for later writing to a file.
+
+=cut
+
+sub _build_dtrace_script_contents {
+  my ($self) = shift;
+
+  my ($template) = $self->dtrace_template_contents();
+  my ($script)   = $self->_replace_DTrace_keywords($template);
+
+  return $script;
+}
 
 =method _replace_DTrace_keywords
 
@@ -751,21 +789,39 @@ sub _replace_DTrace_keywords {
   my ($self,$script) = @_;
 
   my ($execname,$ustack_frames) =
-    ($self->execname, $self->user_stack_frames);
+    ($self->personal_execname, $self->user_stack_frames);
   my ($pid, $tid) =
     ($self->pid, $self->tid);
 
+  say "REPLACING __EXECNAME__ with $execname";
+  say "REPLACING __USTACK_FRAMES__ with $ustack_frames";
   $script =~ s/__EXECNAME__/$execname/gsmx;
   $script =~ s/__USTACK_FRAMES__/$ustack_frames/gsmx;
   if ($pid) {
+    say "REPLACING __PID__ with $pid";
     $script =~ s/__PID__/$pid/gsmx;
   }
   if ($tid) {
+    say "REPLACING __TID__ with $tid";
     $script =~ s/__TID__/$tid/gsmx;
   }
 
   return $script;
 }
+
+sub _build_dtrace_script_fh {
+  my ($self) = shift;
+
+  my ($script_contents) = $self->dtrace_script_contents;
+  my ($tfh)             = File::Temp->new('DTrace-Script-XXXX',
+                                          DIR => '/tmp' );
+
+  $tfh->print($script_contents);
+  $tfh->flush;
+
+  return $tfh;
+}
+
 
 =method _start_dtrace_capture
 
