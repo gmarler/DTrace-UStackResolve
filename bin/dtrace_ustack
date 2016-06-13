@@ -27,4 +27,8 @@ my $dtus = DTrace::UStackResolve->new(
   $ctor_args
 );
 
+my $loop = $dtus->loop;
+
+$loop->run();
+
 

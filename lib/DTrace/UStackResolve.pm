@@ -214,7 +214,7 @@ has 'dtrace_script_contents' => (
 
 # The filehandle for the temporary file that contains the DTrace script we've
 # build from a template - DTrace will be handed the filename of this file to
-# generated the unresolved output
+# generate the unresolved output
 has 'dtrace_script_fh' => (
   is          => 'ro',
   isa         => 'File::Temp',
@@ -226,20 +226,32 @@ has 'dtrace_script_fh' => (
 # OUTPUT FILE NAMES
 #
 # DTrace script output with unresolved stacks
-has 'dscript_unresolved_out' => (
+has 'dscript_unresolved_out_fh' => (
   is          => 'rw',
-  isa         => 'Str',
+  isa         => 'File::Temp',
   #builder     => '_build_dscript_unresolved_out',
-  default     => "/tmp/dscript.out",
+  default     =>
+    sub {
+      my ($self) = shift;
+      my ($fh)   = File::Temp->new('DTrace-UNRESOLVED-XXXX',
+                                    DIR => '/tmp' );
+      return $fh;
+    },
   lazy        => 1,
 );
 
 # DTrace script Error output
-has 'dscript_err' => (
+has 'dscript_err_fh' => (
   is          => 'rw',
-  isa         => 'Str',
+  isa         => 'File::Temp',
   #builder     => '_build_dscript_err',
-  default     => "/tmp/dscript.err",
+  default     =>
+    sub {
+      my ($self) = shift;
+      my ($fh)   = File::Temp->new('DTrace-UNRESOLVED-ERR-XXXX',
+                                    DIR => '/tmp' );
+      return $fh;
+    },
   lazy        => 1,
 );
 
@@ -257,29 +269,6 @@ sub _build_resolved_out {
 
   return "/tmp/dtrace.resolved";
 }
-
-#
-# OUTPUT FILE HANDLES for above
-#
-has 'dscript_unresolved_out_fh' => (
-  is          => 'rw',
-  isa         => 'IO::File',
-  lazy        => 1,
-  default     =>
-    sub {
-      my ($self) = shift;
-
-      my $file = $self->dscript_unresolved_out;
-      unless ($file) {
-        confess "DTrace Unresolved Stack File Undefined!";
-      }
-
-      my $fh = IO::File->new( $file, ">" );
-      confess "Unable to open " . $file . "$!"
-        unless ($fh);
-      return $fh;
-    },
-);
 
 
 # The start time(s) of the execname we started this up
@@ -516,7 +505,6 @@ sub BUILD {
 
   #say "Building D Script Unresolved Output Filename: " .
   #  $self->dscript_unresolved_out;
-  $self->dscript_unresolved_out_fh;
   $self->_sanity_check_type;
   $self->pmap_func;
   $self->sha1_func;
@@ -533,8 +521,12 @@ sub BUILD {
   say "GENERATE personal execname";
   $self->personal_execname;
   $self->dtrace_script_contents;
+  $self->dtrace_script_fh;
+  $self->dscript_unresolved_out_fh;
+  $self->dscript_err_fh;
   # TODO:
   # - Define the filename for the resolved ustacks to be written to
+  $self->_start_dtrace_capture;;
 }
 
 =head1 METHODS
@@ -833,22 +825,17 @@ the unresolved output to a file.
 sub _start_dtrace_capture {
   my ($self) = shift;
 
-  my ($execname) = $self->execname;
   my ($DTRACE)   = $self->DTRACE;
   my ($loop)     = $self->loop;
 
-  my ($script) = build_dtrace_script($execname);
-  my ($dscript_fh) = build_dtrace_script_fh( $script );
-  my ($dscript_filename) = $dscript_fh->filename;
+  my ($dscript_fh)        = $self->dtrace_script_fh;
+  my ($dscript_filename)  = $dscript_fh->filename;
+  my ($unresolved_out_fh) = $self->dscript_unresolved_out_fh;
+  my ($stderr_out_fh)     = $self->dscript_err_fh;
 
   my $cmd = "$DTRACE -s $dscript_filename";
 
   say "Going to execute: $cmd";
-
-  my $dscript_output_fh = IO::File->new("/bb/pm/data/dscript.out", ">")
-    or confess "Unable to open /bb/pm/data/dscript.out for writing: $!";;
-  my $dscript_stderr_fh = IO::File->new("/bb/pm/data/dscript.err", ">")
-    or confess "Unable to open /bb/pm/data/dscript.err for writing: $!";;
 
   my $dtrace_process =
     IO::Async::Process->new(
@@ -859,7 +846,7 @@ sub _start_dtrace_capture {
           #while ( $$buffref =~ s/^(.*)\n// ) {
           while ( length( $$buffref ) ) {
             my $data = substr($$buffref,0, 1024*1024 ,'');
-            $dscript_output_fh->print( $data );
+            $unresolved_out_fh->print( $data );
           }
 
           return 0;
@@ -869,7 +856,7 @@ sub _start_dtrace_capture {
         on_read => sub {
           my ( $stream, $buffref ) = @_;
           while ( $$buffref =~ s/^(.*)\n// ) {
-            $dscript_stderr_fh->print( $1 . "\n" );
+            $stderr_out_fh->print( $1 . "\n" );
           }
 
           return 0;
@@ -878,12 +865,12 @@ sub _start_dtrace_capture {
       on_finish => sub {
         my ($proc_obj,$exitcode) = @_;
         say "DTrace SCRIPT TERMINATED WITH EXIT CODE: $exitcode!";
-        $dscript_output_fh->close;
+        $unresolved_out_fh->close;
         $loop->stop;
         exit(1);
       },
       # on_exception => sub {
-      #   $dscript_output_fh->close;
+      #   $unresolved_out_fh->close;
       #   say "DTrace Script ABORTED!";
       #   $loop->stop;
       #   exit(1);
