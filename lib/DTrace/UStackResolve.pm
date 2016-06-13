@@ -268,7 +268,7 @@ sub _build_resolved_out_fh {
   my ($self) = shift;
 
   my ($pid)            = $self->pid;
-  my ($execname)       = $self->private_execname;
+  my ($execname)       = $self->personal_execname;
   my ($resolved_fname) = "/tmp/$execname-$pid.RESOLVED";
   my ($resolved_fh)    = IO::File->new("$resolved_fname", ">>") or
     die "Unable to open $resolved_fname for writing";
@@ -525,8 +525,8 @@ sub BUILD {
   $self->direct_lookup_cache;
   $self->type;
   $self->dtrace_template_contents;
-  say "GENERATE personal execname";
-  $self->personal_execname;
+  say "GENERATE personal execname: " .
+    $self->personal_execname;
   $self->dtrace_script_contents;
   $self->dtrace_script_fh;
   $self->dscript_unresolved_out_fh;
@@ -966,6 +966,7 @@ sub _resolve_symbol {
           $line .= " [SYMBOL TABLE LOOKUP FAILED]";
         }
       } else {
+        say "FAILED TO LOOKUP ENTRY FOR: $keyfile";
         confess "WHAT THE HECK HAPPENED???";
       }
     } else {
@@ -988,6 +989,7 @@ STDOUT.
 sub start_stack_resolve {
   my ($self) = shift;
 
+  my ($obj) = $self; # for use in IO::Async::FileStream callback below
   my ($unresolved_out) = $self->dscript_unresolved_out_fh->filename;
   my ($resolved_fh)    = $self->resolved_out_fh;
   my ($loop)           = $self->loop;
@@ -1027,7 +1029,7 @@ sub start_stack_resolve {
           $resolved_fh->print( "$line\n" );
           next;
         }
-        $line = resolve_symbols( $line, $current_pid );
+        $line = $obj->_resolve_symbol( $line, $current_pid );
         $resolved_fh->print( "$line\n" );
       }
 
