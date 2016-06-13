@@ -257,17 +257,24 @@ has 'dscript_err_fh' => (
 
 # DTrace output with resolved ustacks
 # NOTE: dependent on the exec_basename already being set
-has 'resolved_out' => (
-  is          => 'rw',
-  isa         => 'Str',
+has 'resolved_out_fh' => (
+  is          => 'ro',
+  isa         => 'IO::File',
   lazy        => 1,
-  builder     => '_build_resolved_out',
+  builder     => '_build_resolved_out_fh',
 );
 
-sub _build_resolved_out {
+sub _build_resolved_out_fh {
   my ($self) = shift;
 
-  return "/tmp/dtrace.resolved";
+  my ($pid)            = $self->pid;
+  my ($execname)       = $self->private_execname;
+  my ($resolved_fname) = "/tmp/$execname-$pid.RESOLVED";
+  my ($resolved_fh)    = IO::File->new("$resolved_fname", ">>") or
+    die "Unable to open $resolved_fname for writing";
+
+  say "RESOLVED stacks in: $resolved_fname";
+  return $resolved_fh;
 }
 
 
@@ -524,9 +531,11 @@ sub BUILD {
   $self->dtrace_script_fh;
   $self->dscript_unresolved_out_fh;
   $self->dscript_err_fh;
+  $self->resolved_out_fh;
   # TODO:
   # - Define the filename for the resolved ustacks to be written to
-  $self->_start_dtrace_capture;;
+  $self->_start_dtrace_capture;
+  $self->start_stack_resolve;
 }
 
 =head1 METHODS
@@ -968,7 +977,7 @@ sub _resolve_symbol {
   }
 }
 
-=method start_stack-resolve
+=method start_stack_resolve
 
 Starts up the asynchronous reading of the output of the DTrace script, and the
 resolution of the user stack contained therein, and the output of this onto
@@ -979,19 +988,17 @@ STDOUT.
 sub start_stack_resolve {
   my ($self) = shift;
 
-  my ($dtrace_outfile) = $self->dtrace_output_file;
-  my ($exec_basename)  = basename($self->execname);
+  my ($unresolved_out) = $self->dscript_unresolved_out_fh->filename;
+  my ($resolved_fh)    = $self->resolved_out_fh;
   my ($loop)           = $self->loop;
 
-  my $dtrace_output_fh  = IO::File->new($dtrace_outfile, "<");
-  my $resolved_fh       = IO::File->new;
-  $resolved_fh->fdopen(fileno(STDOUT),"w");
+  my $dtrace_unresolved_fh  = IO::File->new($unresolved_out, "<");
 
   # TODO: May want to think about changing this from a FileStream to just a
   #       Stream.  Keeping the FileStream for the present just for ease of
   #       debugging in the case where a stack resolution fails.
   my $filestream = IO::Async::FileStream->new(
-    read_handle => $dtrace_output_fh,
+    read_handle => $dtrace_unresolved_fh,
     autoflush   => $self->autoflush_dtrace_output,
     #on_initial => sub {
     #  my ( $self ) = @_;
