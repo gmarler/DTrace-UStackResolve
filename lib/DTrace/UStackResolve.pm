@@ -37,8 +37,8 @@ use Data::Dumper;
 our %dtrace_types = (
   "profile"         => "profile_pid.d",
   "profile_tid"     => "profile_pid_tid.d",
-  "whatfor"         => "whatfor_pid.d",
-  "whatfor_tid"     => "whatfor_pid_tid.d",
+  "off-cpu"         => "whatfor_pid.d",
+  "off-cpu_tid"     => "whatfor_pid_tid.d",
 );
 
 #
