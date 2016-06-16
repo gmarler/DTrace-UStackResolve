@@ -793,10 +793,19 @@ sub _replace_DTrace_keywords {
   say "REPLACING __USTACK_FRAMES__ with $ustack_frames";
   $script =~ s/__EXECNAME__/$execname/gsmx;
   $script =~ s/__USTACK_FRAMES__/$ustack_frames/gsmx;
-  if ($pid) {
-    say "REPLACING __PID__ with $pid";
-    $script =~ s/__PID__/$pid/gsmx;
+
+  my (@pidlist_snippets, $pidlist_snippet);
+
+  foreach my $pid (@$pids_aref) {
+    push @pidlist_snippets, " ( pid == $pid ) ";
   }
+
+  $pidlist_snippet = "( \n" . join('||', @pidlist_snippets) . "\n)";
+
+  say "Build __PIDLIST__ replacement:\n$pidlist_snippet";
+
+  $script =~ s/__PIDLIST__/$pidlist_snippet/gsmx;
+
   if ($tid) {
     say "REPLACING __TID__ with $tid";
     $script =~ s/__TID__/$tid/gsmx;
