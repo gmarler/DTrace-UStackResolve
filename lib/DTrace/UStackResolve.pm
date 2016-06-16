@@ -1160,9 +1160,10 @@ sub _gen_symbol_table {
 
     push @$symtab_aref, $val;
     if (($symcount++ % 10000) == 0) {
-      say "$exec_or_lib_path: PARSED $symcount SYMBOLS";
+      say "$exec_or_lib_path: PARSING REACHED $symcount SYMBOL";
     }
   }
+  say "$exec_or_lib_path: PARSED TOTAL OF $symcount SYMBOLS";
   # ASSERT that $_start_offset is defined
   assert_defined_variable($_start_offset);
 
@@ -1171,7 +1172,12 @@ sub _gen_symbol_table {
   } else {
     say "ADJUSTING OFFSETS FOR SYMBOLS IN: $exec_or_lib_path, BY $_start_offset";
     foreach my $symval (@$symtab_aref) {
-      $symval->[0] -= $_start_offset;
+      # Only want to do this if the result won't be negative
+      if (($symval->[0] - $_start_offset) <= 0) {
+        say "UNABLE TO ADJUST OFFSET " . $symval->[0] . " for " . $symval->[2];
+      } else {
+        $symval->[0] -= $_start_offset;
+      }
     }
   }
   # Sort the symbol table by starting address before returning it
