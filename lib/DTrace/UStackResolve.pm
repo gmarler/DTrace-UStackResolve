@@ -163,11 +163,6 @@ has 'personal_execname' => (
 );
 
 
-has 'pids'      => (
-  is          => 'ro',
-  isa         => 'ArrayRef[Int]',
-);
-
 # Normally only set if profile is one that requires a tid
 has 'tid'      => (
   # TODO: Unless the appropriate 'type' is specified (requiring a tid), just
@@ -267,7 +262,10 @@ has 'resolved_out_fh' => (
 sub _build_resolved_out_fh {
   my ($self) = shift;
 
-  my ($pid)            = $self->pid;
+  # NOTE: Since we can have multiple PIDs, just take the first one
+  #       Maybe later we can split these out, if we care, and produce
+  #       an array of resolved output files to write into
+  my ($pid)            = $self->pids->[0];
   my ($execname)       = $self->personal_execname;
   my ($resolved_fname) = "/tmp/$execname-$pid.RESOLVED";
   my ($resolved_fh)    = IO::File->new("$resolved_fname", ">>") or
@@ -304,8 +302,9 @@ sub _build_pid_starttime {
 has 'pids' => (
   is          => 'rw',
   isa         => 'ArrayRef[Int]',
-  builder     => '_build_pids',
-  lazy        => 1,
+  #builder     => '_build_pids',
+  required    => 1,
+  #lazy        => 1,
 );
 
 has 'dynamic_library_paths' => (
@@ -475,30 +474,33 @@ sub _build_direct_lookup_cache {
   return \%symtab_trees;
 }
 
-# TODO: Add a test for constructor called with execname only and pid only
+# TODO: Add a test for constructor called with execname only and pids only
 override BUILDARGS => sub {
   my $class = shift;
 
-  if (exists($_[0]->{pid})) {
+  if (exists($_[0]->{pids})) {
     # NOTE: The true absolute path to the executable is contained in procfs;
     #       however, the name the process knows itself as, and which it will
     #       report itself as in ustack before a colon is only visible via pargs,
     #       so we probably need to store both
-    my $pid = $_[0]->{pid};
-    my $a_out = "/proc/$pid/path/a.out";
-    my ($abs_path) = readlink($a_out);
-    if (not defined($abs_path)) {
-      carp "could not open $a_out: $!";
-    } else {
-      $_[0]->{execname} = $abs_path;
-    }
+    foreach my $pid (@{$_[0]->{pids}}) {
+      my $a_out = "/proc/$pid/path/a.out";
+      my ($abs_path) = readlink($a_out);
+      if (not defined($abs_path)) {
+        carp "could not open $a_out: $!";
+      } else {
+        $_[0]->{execname} = $abs_path;
+      }
+      # NOTE: Storing the basename only
+      $_[0]->{personal_execname} = basename($abs_path);
 
-    my $pargs_out = capture( "/bin/pargs $pid" );
-    say "PARGS OUT: $pargs_out";
-    $pargs_out =~ m/^argv\[0\]:\s+(?<personal_execname>[^\n]+)/gsmx;
-    my $personal_execname = $+{personal_execname};
-    # NOTE: Storing the basename only
-    $_[0]->{personal_execname} = basename($personal_execname);
+      #my $pargs_out = capture( "/bin/pargs $pid" );
+      #say "PARGS OUT: $pargs_out";
+      #$pargs_out =~ m/^argv\[0\]:\s+(?<personal_execname>[^\n]+)/gsmx;
+      #my $personal_execname = $+{personal_execname};
+      ## NOTE: Storing the basename only
+      #$_[0]->{personal_execname} = basename($personal_execname);
+    }
   }
 
   return super;
@@ -624,44 +626,37 @@ sub _build_loop {
   return $loop;
 }
 
-sub _build_pids {
-  my ($self) = shift;
-
-
-  # If our PID is already explicitly set, no need to look further.
-  #
-  if ($self->pid) {
-    return [ $self->pid ];
-  }
-
-  my (@pids);
-  my ($PGREP) = $self->PGREP;
-  my $execname = $self->execname;
-  # NOTE: On Solaris, if on global zone, pgrep will pick up the pid with this
-  #       execname in ALL zones unless you explicitly ask for the zone *you are
-  #       in*
-  my $zonename = capture( EXIT_ANY, "/bin/zonename" );
-  chomp($zonename);
-  my @output = capture( EXIT_ANY, "$PGREP -z $zonename -lxf '^$execname(.+)?'" );
-
-  if ($EXITVAL == 1) {
-    carp "No PIDs were found that match [$execname] !";
-    # TODO: should this croak or what?
-  } elsif ($EXITVAL == 0) {
-
-      chomp(@output);
-
-    say "PIDS:";
-    say join("\n",@output);
-    @pids = map { my $line = $_;
-                  $line =~ m/^(?:\s+)?(?<pid>\d+)\s+/;
-                  $+{pid}; } @output;
-  } else {
-    confess "pgrep returned $EXITVAL, which is a fatal exception for us";
-  }
-
-  return \@pids;
-}
+# sub _build_pids {
+#   my ($self) = shift;
+# 
+#   my (@pids);
+#   my ($PGREP) = $self->PGREP;
+#   my $execname = $self->execname;
+#   # NOTE: On Solaris, if on global zone, pgrep will pick up the pid with this
+#   #       execname in ALL zones unless you explicitly ask for the zone *you are
+#   #       in*
+#   my $zonename = capture( EXIT_ANY, "/bin/zonename" );
+#   chomp($zonename);
+#   my @output = capture( EXIT_ANY, "$PGREP -z $zonename -lxf '^$execname(.+)?'" );
+# 
+#   if ($EXITVAL == 1) {
+#     carp "No PIDs were found that match [$execname] !";
+#     # TODO: should this croak or what?
+#   } elsif ($EXITVAL == 0) {
+# 
+#       chomp(@output);
+# 
+#     say "PIDS:";
+#     say join("\n",@output);
+#     @pids = map { my $line = $_;
+#                   $line =~ m/^(?:\s+)?(?<pid>\d+)\s+/;
+#                   $+{pid}; } @output;
+#   } else {
+#     confess "pgrep returned $EXITVAL, which is a fatal exception for us";
+#   }
+# 
+#   return \@pids;
+# }
 
 
 # Given a path to a dynamic/shared library or an executable,
