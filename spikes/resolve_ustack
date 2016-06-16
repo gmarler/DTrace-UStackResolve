@@ -46,18 +46,24 @@ our ($dscript_out, $dscript_err) =
     ( "/tmp/dscript.out", "/tmp/dscript.err" );
 our ($resolved_fname) = ( "" );
 
-my ($execname,$dtrace_type,$execpath,$exec_basename,$pid,$tid);
+my ($execname,$dtrace_type,$execpath,$exec_basename,$pids_aref,@pids,$tid);
 
 GetOptions("execname=s"  => \$execname,
-           "pid=i"       => \$pid,
+           "pids=s"      => \@pids,
            "tid=i"       => \$tid,
            "type=s"      => \$dtrace_type,
           ) or
   die("Error in command line arguments");
 
-unless ((defined $execname) or (defined $pid)) {
-  die "--execname or --pid argument required";
+unless ((defined $execname) or (scalar(@pids))) {
+  die "--execname or --pids argument required";
 }
+
+if (scalar(@pids)) {
+  $pids_aref = [ split(/,/, join(',',@pids)) ];
+  say "PIDS PROVIDED: " . join(',', @$pids_aref);
+}
+
 
 if (defined($dtrace_type)) {
   say "Using DTrace Type of: $dtrace_type";
@@ -169,30 +175,29 @@ $loop->add( $pmap_func );
 $loop->add( $gen_symtab_func );
 $loop->add( $resolve_symbols_func );
 
-my ($pids_aref);
-
-if ($execname) {
+if (scalar(@$pids_aref)) {
+  # Do nothing here, already done
+} elsif ($execname) {
   $pids_aref = get_execname_pids($execname);
-} elsif ($pid) {
-  $pids_aref = [ $pid ];
 } else {
   die "Unable to determine pids to instrument";
 }
 
 my (%execpaths);
 foreach my $pid (@$pids_aref) {
-  #my $a_out = "/proc/$pid/path/a.out";
-  #my ($abs_path) = readlink($a_out);
-  #if (not defined($abs_path)) {
-  #  carp "could not open $a_out: $!";
-  #  next;
-  #}
+  my $a_out = "/proc/$pid/path/a.out";
+  my ($abs_path) = readlink($a_out);
+  if (not defined($abs_path)) {
+    carp "could not open $a_out: $!";
+    next;
+  }
   #
   # Because the name of the process isn't always what the filename is
   # EXAMPLE: ksh93 shows up as ksh instead
-  my $pargs_out = capture( "/bin/pargs $pid" );
-  $pargs_out =~ m/^argv\[0\]:\s+(?<abs_path>[^\n]+)/gsmx;
-  my $abs_path = $+{abs_path};
+  #my ($pargs_out,$abs_path);
+  #$pargs_out = capture( "/bin/pargs $pid" );
+  #$pargs_out =~ m/^argv\[0\]:\s+(?<abs_path>[^\n]+)/gsmx;
+  #$abs_path = $+{abs_path};
   say "EXTRACTED ABSOLUTE PATH: $abs_path";
 
   $execpaths{$abs_path}++;
@@ -600,8 +605,8 @@ WHATFOR_END
 }
 
 
-sub build_dtrace_script_for_pid {
-  my ($pid) = shift;
+sub build_dtrace_script_for_pids {
+  my ($pids_aref) = shift;
 
   my $script = <<'END';
 #pragma D option noresolve
@@ -609,7 +614,7 @@ sub build_dtrace_script_for_pid {
 #pragma D option ustackframes=100
 
 profile-197Hz
-/ pid == __PID__ /
+/ __PIDLIST__ /
 {
   @s[pid,tid,stack(),ustack()] = count();
 }
@@ -638,7 +643,7 @@ END
 #pragma D option ustackframes=100
 
 sched:::off-cpu
-/ pid == __PID__ &&
+/ __PIDLIST__ &&
   curlwpsinfo &&
   curlwpsinfo->pr_state == SSLEEP /
 {
@@ -650,7 +655,7 @@ sched:::off-cpu
 }
 
 sched:::off-cpu
-/ pid == __PID__ &&
+/ __PIDLIST__ &&
   curlwpsinfo &&
   curlwpsinfo->pr_state == SRUN /
 {
@@ -692,8 +697,18 @@ tick-1sec
 
 WHATFOR_END
 
-  $script =~ s/__PID__/$pid/gsmx;
-  $whatfor_script =~ s/__PID__/$pid/gsmx;
+  my (@pidlist_snippets, $pidlist_snippet);
+
+  foreach my $pid (@$pids_aref) {
+    push @pidlist_snippets, " ( pid == $pid ) ";
+  }
+
+  $pidlist_snippet = "( \n" . join('||', @pidlist_snippets) . "\n)";
+
+  say "Build __PIDLIST__ replacement:\n$pidlist_snippet";
+
+  $script =~ s/__PIDLIST__/$pidlist_snippet/gsmx;
+  $whatfor_script =~ s/__PIDLIST__/$pidlist_snippet/gsmx;
 
   if ($dtrace_type eq "profile") {
     return $script;
@@ -841,8 +856,10 @@ sub start_dtrace {
     if (defined($arg_href->{tid})) {
       $script = build_dtrace_script_for_pid_tid($arg_href->{pid}, $arg_href->{tid});
     } else {
-      $script = build_dtrace_script_for_pid($arg_href->{pid});
+      $script = build_dtrace_script_for_pids( [ $arg_href->{pid} ] );
     }
+  } elsif (exists($arg_href->{pids})) {
+    $script = build_dtrace_script_for_pids( $arg_href->{pids} );
   } else {
     die "Unable to build a DTrace script without a pid or execname!";
   }
@@ -905,10 +922,12 @@ sub start_dtrace {
   $loop->add( $dtrace_process );
 }
 
-if ($execname) {
+if (scalar(@$pids_aref)) {
+  start_dtrace( { pids => $pids_aref } );
+} elsif ($execname) {
   start_dtrace( { execname => basename($execname) } );
 } else {
-  start_dtrace( { pid => $pid, tid => $tid } );
+  start_dtrace( { pid => $pids_aref->[0], tid => $tid } );
 }
 
 sub start_stack_resolve {
