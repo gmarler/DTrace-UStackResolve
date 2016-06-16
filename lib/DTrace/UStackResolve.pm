@@ -230,6 +230,7 @@ has 'dscript_unresolved_out_fh' => (
       my ($self) = shift;
       my ($fh)   = File::Temp->new('DTrace-UNRESOLVED-XXXX',
                                     DIR => '/tmp' );
+      say "UNRESOLVED USTACK OUTPUT FILE: " . $fh->filename;
       return $fh;
     },
   lazy        => 1,
