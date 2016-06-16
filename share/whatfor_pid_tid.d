@@ -3,7 +3,7 @@
 #pragma D option ustackframes=100
 
 sched:::off-cpu
-/ pid == __PID__ &&
+/ __PIDLIST__ &&
   curlwpsinfo &&
   curlwpsinfo->pr_state == SSLEEP /
 {
@@ -15,7 +15,7 @@ sched:::off-cpu
 }
 
 sched:::off-cpu
-/ pid == __PID__ &&
+/ __PIDLIST__ &&
   curlwpsinfo &&
   curlwpsinfo->pr_state == SRUN /
 {

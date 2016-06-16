@@ -628,7 +628,7 @@ sub _build_loop {
 
 # sub _build_pids {
 #   my ($self) = shift;
-# 
+#
 #   my (@pids);
 #   my ($PGREP) = $self->PGREP;
 #   my $execname = $self->execname;
@@ -638,14 +638,14 @@ sub _build_loop {
 #   my $zonename = capture( EXIT_ANY, "/bin/zonename" );
 #   chomp($zonename);
 #   my @output = capture( EXIT_ANY, "$PGREP -z $zonename -lxf '^$execname(.+)?'" );
-# 
+#
 #   if ($EXITVAL == 1) {
 #     carp "No PIDs were found that match [$execname] !";
 #     # TODO: should this croak or what?
 #   } elsif ($EXITVAL == 0) {
-# 
+#
 #       chomp(@output);
-# 
+#
 #     say "PIDS:";
 #     say join("\n",@output);
 #     @pids = map { my $line = $_;
@@ -654,7 +654,7 @@ sub _build_loop {
 #   } else {
 #     confess "pgrep returned $EXITVAL, which is a fatal exception for us";
 #   }
-# 
+#
 #   return \@pids;
 # }
 
@@ -786,8 +786,8 @@ sub _replace_DTrace_keywords {
 
   my ($execname,$ustack_frames) =
     ($self->personal_execname, $self->user_stack_frames);
-  my ($pid, $tid) =
-    ($self->pid, $self->tid);
+  my ($pids_aref, $tid) =
+    ($self->pids, $self->tid);
 
   say "REPLACING __EXECNAME__ with $execname";
   say "REPLACING __USTACK_FRAMES__ with $ustack_frames";

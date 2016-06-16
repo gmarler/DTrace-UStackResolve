@@ -3,7 +3,7 @@
 #pragma D option ustackframes=100
 
 profile-197Hz
-/ pid == __PID__ /
+/ __PIDLIST__ /
 {
   @s[pid,tid,stack(),ustack()] = count();
 }
