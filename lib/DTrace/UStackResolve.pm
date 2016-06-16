@@ -163,9 +163,9 @@ has 'personal_execname' => (
 );
 
 
-has 'pid'      => (
+has 'pids'      => (
   is          => 'ro',
-  isa         => 'Int',
+  isa         => 'ArrayRef[Int]',
 );
 
 # Normally only set if profile is one that requires a tid
@@ -1066,7 +1066,8 @@ sub _pid_dynamic_library_paths {
 
   # This relies on the fact that the first time a lib is listed in pmap output
   # is the actual offset we're always looking for.
-  # NOTE: We don't need the base_addr anymore, so we simply ignore it now
+  # TODO: We need to store the start address of each library for each PID, so
+  #       we'll have the proper lookups of symbols in that library for each PID
   foreach my $pid (@pids) {
     my $pmap_output = capture( "$PMAP $pid" );
     while ($pmap_output =~ m{$so_regex}gsmx) {

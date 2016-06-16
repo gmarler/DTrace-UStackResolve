@@ -8,10 +8,11 @@ use warnings;
 use DTrace::UStackResolve;
 use Getopt::Long;
 
-my ($execname, $pid, $ctor_args);
+my ($execname, @pids, $pids_aref, $dtrace_type, $ctor_args);
 
 GetOptions("execname=s", \$execname,
-           "pid=i",      \$pid,
+           "pids=s",     \@pids,
+           "type=s",     \$dtrace_type,
        )
          or die("Error in command line arguments");
 
@@ -19,8 +20,10 @@ GetOptions("execname=s", \$execname,
 
 if (defined($execname)) {
   $ctor_args->{execname} = $execname;
-} elsif (defined($pid)) {
-  $ctor_args->{pid}      = $pid;
+} elsif (scalar(@pids)) {
+  $pids_aref = [ split(/,/, join(',',@pids)) ];
+  say "PIDS PROVIDED: " . join (',', @$pids_aref);
+  $ctor_args->{pids}      = $pids_aref;
 }
 
 my $dtus = DTrace::UStackResolve->new(
