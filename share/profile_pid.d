@@ -4,7 +4,7 @@
 #pragma D option aggrate=103Hz
 #pragma D option cleanrate=107Hz
 
-profile-197Hz
+profile-297Hz
 / __PIDLIST__ /
 {
   @s[pid,tid,stack(),ustack()] = count();

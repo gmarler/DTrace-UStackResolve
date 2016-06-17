@@ -503,7 +503,7 @@ sub build_dtrace_script_for_execname {
 #pragma D option aggrate=103Hz
 #pragma D option cleanrate=107Hz
 
-profile-197Hz
+profile-297Hz
 / execname == "__EXECNAME__" /
 {
   @s[pid,tid,stack(),ustack()] = count();
@@ -619,7 +619,7 @@ sub build_dtrace_script_for_pids {
 #pragma D option aggrate=103Hz
 #pragma D option cleanrate=107Hz
 
-profile-197Hz
+profile-297Hz
 / __PIDLIST__ /
 {
   @s[pid,tid,stack(),ustack()] = count();
@@ -736,7 +736,7 @@ sub build_dtrace_script_for_pid_tid {
 #pragma D option quiet
 #pragma D option ustackframes=100
 
-profile-197Hz
+profile-297Hz
 / (pid == __PID__) && (tid == __TID__) /
 {
   @s[pid,tid,stack(),ustack()] = count();
