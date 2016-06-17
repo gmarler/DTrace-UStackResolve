@@ -1,6 +1,8 @@
 #pragma D option noresolve
 #pragma D option quiet
 #pragma D option ustackframes=100
+#pragma D option aggrate=103Hz
+#pragma D option cleanrate=107Hz
 
 profile-197Hz
 / __PIDLIST__ /
