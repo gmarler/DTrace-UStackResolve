@@ -500,6 +500,8 @@ sub build_dtrace_script_for_execname {
 #pragma D option noresolve
 #pragma D option quiet
 #pragma D option ustackframes=100
+#pragma D option aggrate=103Hz
+#pragma D option cleanrate=107Hz
 
 profile-197Hz
 / execname == "__EXECNAME__" /
@@ -529,6 +531,8 @@ END
 #pragma D option noresolve
 #pragma D option quiet
 #pragma D option ustackframes=100
+#pragma D option aggrate=103Hz
+#pragma D option cleanrate=107Hz
 
 sched:::off-cpu
 / execname == "__EXECNAME__" &&
@@ -612,6 +616,8 @@ sub build_dtrace_script_for_pids {
 #pragma D option noresolve
 #pragma D option quiet
 #pragma D option ustackframes=100
+#pragma D option aggrate=103Hz
+#pragma D option cleanrate=107Hz
 
 profile-197Hz
 / __PIDLIST__ /
@@ -641,6 +647,8 @@ END
 #pragma D option noresolve
 #pragma D option quiet
 #pragma D option ustackframes=100
+#pragma D option aggrate=103Hz
+#pragma D option cleanrate=107Hz
 
 sched:::off-cpu
 / __PIDLIST__ &&
