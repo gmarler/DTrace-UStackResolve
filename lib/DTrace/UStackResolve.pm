@@ -31,6 +31,8 @@ use IPC::System::Simple   qw( capture $EXITVAL EXIT_ANY );
 use Carp;
 # Needs Exporter::ConditionalSubs
 use Assert::Conditional  qw( :scalar );
+use Socket                qw(SOL_SOCKET SO_RCVBUF SO_SNDBUF);
+use Config;
 use Data::Dumper;
 
 
@@ -890,7 +892,27 @@ sub _start_dtrace_capture {
       },
       on_finish => sub {
         my ($proc_obj,$exitcode) = @_;
-        say "DTrace SCRIPT TERMINATED WITH EXIT CODE: $exitcode!";
+
+        my %sig_num;
+        my @sig_name;
+
+        my @names = split ' ', $Config{sig_name};
+        @sig_num{@names} = split ' ', $Config{sig_num};
+        foreach (@names) {
+          $sig_name[$sig_num{$_}] ||= $_;
+        }
+
+        my $status = $exitcode >> 8;
+        my $signal = $exitcode & 127;
+        my $core_produced = $exitcode & 128;
+        say "DTrace SCRIPT TERMINATED WITH STATUS: $status";
+        if ($signal) {
+          say "DTrace SCRIPT TERMINATED BY SIGNAL: ", $sig_name[$signal];
+        }
+        if ($core_produced) {
+          say "DTrace SCRIPT PRODUCED A CORE DUMP";
+        }
+
         $unresolved_out_fh->close;
         $loop->stop;
         exit(1);
