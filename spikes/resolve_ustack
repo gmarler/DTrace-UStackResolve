@@ -924,6 +924,7 @@ sub start_dtrace {
         on_read => sub {
           my ( $stream, $buffref ) = @_;
           if (not $socket_buffers_grown) {
+            $stream->configure( read_len => 1024 * 1024 );
             $stream->read_handle->setsockopt(SOL_SOCKET, SO_RCVBUF, 50*1024*1024);
             $stream->read_handle->setsockopt(SOL_SOCKET, SO_SNDBUF, 50*1024*1024);
             say "SO_RCVBUF: " . $stream->read_handle->getsockopt(SOL_SOCKET,SO_RCVBUF);

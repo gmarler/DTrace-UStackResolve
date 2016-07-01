@@ -851,13 +851,25 @@ sub _start_dtrace_capture {
 
   say "Going to execute: $cmd";
 
+  my $socket_buffers_grown;
+
   my $dtrace_process =
     IO::Async::Process->new(
       command => $cmd,
       stdout  => {
+        via     => 'socketpair',
         on_read => sub {
           my ( $stream, $buffref ) = @_;
-          #while ( $$buffref =~ s/^(.*)\n// ) {
+
+          if (not $socket_buffers_grown) {
+            $stream->configure( read_len => 1024 * 1024 );
+            $stream->read_handle->setsockopt(SOL_SOCKET, SO_RCVBUF, 50*1024*1024);
+            $stream->read_handle->setsockopt(SOL_SOCKET, SO_SNDBUF, 50*1024*1024);
+            say "SO_RCVBUF: " . $stream->read_handle->getsockopt(SOL_SOCKET,SO_RCVBUF);
+            say "SO_SNDBUF: " . $stream->read_handle->getsockopt(SOL_SOCKET,SO_SNDBUF);
+            $socket_buffers_grown++;
+          }
+
           while ( length( $$buffref ) ) {
             my $data = substr($$buffref,0, 1024*1024 ,'');
             $unresolved_out_fh->print( $data );
