@@ -31,6 +31,8 @@ use Math::BigInt          qw( );
 use Carp;
 use CHI;
 use Tree::RB              qw( LULTEQ );
+use Socket                qw(SOL_SOCKET SO_RCVBUF SO_SNDBUF);
+use Config;
 
 use Readonly;
 
@@ -913,12 +915,21 @@ sub start_dtrace {
   my $dscript_stderr_fh = IO::File->new($dscript_err, ">")
     or die "Unable to open $dscript_err for writing: $!";;
 
+  my $socket_buffers_grown;
   my $dtrace_process =
     IO::Async::Process->new(
       command => $cmd,
       stdout  => {
+        via     => 'socketpair',
         on_read => sub {
           my ( $stream, $buffref ) = @_;
+          if (not $socket_buffers_grown) {
+            $stream->read_handle->setsockopt(SOL_SOCKET, SO_RCVBUF, 50*1024*1024);
+            $stream->read_handle->setsockopt(SOL_SOCKET, SO_SNDBUF, 50*1024*1024);
+            say "SO_RCVBUF: " . $stream->read_handle->getsockopt(SOL_SOCKET,SO_RCVBUF);
+            say "SO_SNDBUF: " . $stream->read_handle->getsockopt(SOL_SOCKET,SO_SNDBUF);
+            $socket_buffers_grown++;
+          }
           #while ( $$buffref =~ s/^(.*)\n// ) {
           while ( length( $$buffref ) ) {
             my $data = substr($$buffref,0, 1024*1024 ,'');
@@ -942,7 +953,27 @@ sub start_dtrace {
         #say "ENTERING on_finish for DTrace process: ";
         #say Dumper( \@_ );
         my ($proc_obj,$exitcode) = @_;
-        say "DTrace SCRIPT TERMINATED WITH EXIT CODE: $exitcode!";
+
+        my %sig_num;
+        my @sig_name;
+
+        my @names = split ' ', $Config{sig_name};
+        @sig_num{@names} = split ' ', $Config{sig_num};
+        foreach (@names) {
+          $sig_name[$sig_num{$_}] ||= $_;
+        }
+
+        my $status = $exitcode >> 8;
+        my $signal = $exitcode & 127;
+        my $core_produced = $exitcode & 128;
+        say "DTrace SCRIPT TERMINATED WITH STATUS: $status";
+        if ($signal) {
+          say "DTrace SCRIPT TERMINATED BY SIGNAL: ", $sig_name[$signal];
+        }
+        if ($core_produced) {
+          say "DTrace SCRIPT PRODUCED A CORE DUMP";
+        }
+
         $dscript_output_fh->close;
         $loop->stop;
         exit(1);
@@ -972,7 +1003,9 @@ sub start_stack_resolve {
   #
   # TODO Add ability to send to file or STDOUT via a command line arg
   #
-  my $resolved_fname = "/tmp/$exec_basename.resolved";
+  my ($day, $month, $year) = (localtime)[3,4,5];
+  my $datestamp = sprintf("%04d%02d%02d", $year + 1900, $month + 1, $day);
+  my $resolved_fname = "/bb/pm/data/$exec_basename.resolved-$datestamp";
   say "RESOLVED STACKS AVAILABLE HERE: $resolved_fname";
   my $log_fh      = IO::File->new($logfile, "<");
   my $resolved_fh = IO::File->new($resolved_fname, ">>") or
