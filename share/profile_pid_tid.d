@@ -1,8 +1,12 @@
 #pragma D option noresolve
 #pragma D option quiet
 #pragma D option ustackframes=100
+#pragma D option bufsize=2m
 #pragma D option aggrate=103Hz
-#pragma D option cleanrate=107Hz
+#pragma D option aggsize=4m
+#pragma D option switchrate=239Hz
+#pragma D option cleanrate=353Hz
+#pragma D option dynvarsize=10m
 
 profile-297Hz
 / __PIDLIST__ &&
