@@ -45,7 +45,7 @@ Log::Log4perl->easy_init($INFO);
 Log::Any::Adapter->set('Log4perl');
 
 our ($dscript_out, $dscript_err) =
-    ( "/tmp/dscript.out", "/tmp/dscript.err" );
+    ( "dscript.out", "dscript.err" );
 our ($resolved_fname) = ( "" );
 
 my ($execname,$dtrace_type,$execpath,$exec_basename,$pids_aref,@pids,$tid);
@@ -910,10 +910,22 @@ sub start_dtrace {
 
   say "Going to execute: $cmd";
 
-  my $dscript_output_fh = IO::File->new($dscript_out, ">")
-    or die "Unable to open $dscript_out for writing: $!";;
-  my $dscript_stderr_fh = IO::File->new($dscript_err, ">")
-    or die "Unable to open $dscript_err for writing: $!";;
+  #my $dscript_output_fh = IO::File->new($dscript_out, ">")
+  #  or die "Unable to open $dscript_out for writing: $!";;
+  #my $dscript_stderr_fh = IO::File->new($dscript_err, ">")
+  #  or die "Unable to open $dscript_err for writing: $!";;
+  my ($dscript_output_fh) =
+    File::Temp->new( $dscript_out . '-XXXX', DIR => '/bb/pm/data',
+                     UNLINK => 0);
+  # Now that we've created the actual unresolved script output filename, we need
+  # to update the original "base" name so that we can use it later for reading
+  # from and resolving the output
+  $dscript_out = $dscript_output_fh->filename;
+  say "UNRESOLVED output file:    " . $dscript_output_fh->filename;
+  my $dscript_stderr_fh =
+    File::Temp->new($dscript_err . '-XXXX', DIR => '/bb/pm/data',
+                    UNLINK => 0);
+  say "DTrace STDERR output file: " . $dscript_stderr_fh->filename;
 
   my $dtrace_process =
     IO::Async::Process->new(
@@ -932,7 +944,7 @@ sub start_dtrace {
           my ( $stream, $buffref ) = @_;
           #while ( $$buffref =~ s/^(.*)\n// ) {
           while ( length( $$buffref ) ) {
-            my $data = substr($$buffref,0, 1024*1024 ,'');
+            my $data = substr($$buffref,0, 5*1024*1024 ,'');
             $dscript_output_fh->print( $data );
           }
 
@@ -1003,8 +1015,9 @@ sub start_stack_resolve {
   #
   # TODO Add ability to send to file or STDOUT via a command line arg
   #
-  my ($day, $month, $year) = (localtime)[3,4,5];
-  my $datestamp = sprintf("%04d%02d%02d", $year + 1900, $month + 1, $day);
+  my ($day, $month, $year, $hour, $min) = (localtime)[3,4,5,2,1];
+  my $datestamp = sprintf("%04d%02d%02d-%02d%02d",
+                          $year + 1900, $month + 1, $day, $hour, $min);
   my $resolved_fname = "/bb/pm/data/$exec_basename.resolved-$datestamp";
   say "RESOLVED STACKS AVAILABLE HERE: $resolved_fname";
   my $log_fh      = IO::File->new($logfile, "<");
