@@ -915,22 +915,21 @@ sub start_dtrace {
   my $dscript_stderr_fh = IO::File->new($dscript_err, ">")
     or die "Unable to open $dscript_err for writing: $!";;
 
-  my $socket_buffers_grown;
   my $dtrace_process =
     IO::Async::Process->new(
       command => $cmd,
       stdout  => {
         via     => 'socketpair',
+        prefork => sub {
+          my ($parentfd, $childfd) = @_;
+
+          $parentfd->setsockopt(SOL_SOCKET, SO_RCVBUF, 50*1024*1024);
+          $parentfd->setsockopt(SOL_SOCKET, SO_SNDBUF, 50*1024*1024);
+          $childfd ->setsockopt(SOL_SOCKET, SO_RCVBUF, 50*1024*1024);
+          $childfd ->setsockopt(SOL_SOCKET, SO_SNDBUF, 50*1024*1024);
+        },
         on_read => sub {
           my ( $stream, $buffref ) = @_;
-          if (not $socket_buffers_grown) {
-            $stream->configure( read_len => 1024 * 1024 );
-            $stream->read_handle->setsockopt(SOL_SOCKET, SO_RCVBUF, 50*1024*1024);
-            $stream->read_handle->setsockopt(SOL_SOCKET, SO_SNDBUF, 50*1024*1024);
-            say "SO_RCVBUF: " . $stream->read_handle->getsockopt(SOL_SOCKET,SO_RCVBUF);
-            say "SO_SNDBUF: " . $stream->read_handle->getsockopt(SOL_SOCKET,SO_SNDBUF);
-            $socket_buffers_grown++;
-          }
           #while ( $$buffref =~ s/^(.*)\n// ) {
           while ( length( $$buffref ) ) {
             my $data = substr($$buffref,0, 1024*1024 ,'');
