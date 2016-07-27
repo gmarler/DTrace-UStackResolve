@@ -987,8 +987,10 @@ sub start_dtrace {
         }
 
         $dscript_output_fh->close;
-        $loop->stop;
-        exit(1);
+        # At this point, DTrace has stopped producing output, but we're
+        # likely not done resolving it yet - let things run...
+        #$loop->stop;
+        #exit(1);
       },
       # on_exception => sub {
       #   $dscript_output_fh->close;
