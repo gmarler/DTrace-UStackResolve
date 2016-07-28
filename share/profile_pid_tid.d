@@ -1,3 +1,4 @@
+#pragma D option destructive
 #pragma D option noresolve
 #pragma D option quiet
 #pragma D option ustackframes=100
