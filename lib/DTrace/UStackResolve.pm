@@ -923,6 +923,7 @@ sub _start_dtrace_capture {
         # Note that DTrace has stopped.  When end of output file
         # has been reached by resolver, then exit script elsewhere.
         $self->dtrace_has_exited(1);
+        $loop->remove( $proc_obj );
         #
         # This is what we used to do:
         # At this point, DTrace has stopped producing output, but we're
