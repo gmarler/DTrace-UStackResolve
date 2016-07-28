@@ -1197,3 +1197,45 @@ sub _binarySearch
 END {
   CHI->stats->flush();
 }
+
+__END__
+
+IRC CHAT:
+
+LeoNerd
+How about   via => "socketpair", prefork => sub { $_[1]->setsockopt( ... ) },
+The idea being   prefork => CODE($local,$remote)   invoke this code after creating the filehandle pair but before forking
+gmarler
+Suits me just fine - just need to add a little POD blurb about why you'd do anything like that prefork, for the not so initiated. 
+LeoNerd
+Yah.. probably sockopts would be a good example for that 
+gmarler
+I'd be happy to work on it, or test it if you'd want to do it, if only I knew which module you'd like it inserted in - I'd suspect IO::Async::Stream, but must defer to you. 
+LeoNerd
+Process, definitely 
+https://rt.cpan.org/Ticket/Display.html?id=115920 
+gmarler
+Heh. 
+LeoNerd
+Likely some lines adding to  https://metacpan.org/source/PEVANS/IO-Async-0.70/lib/IO/Async/Process.pm#L387 
+Hrm. Except that is split into the various use-cases, so there's no convenient "one line" to put it 
+Such is complicated by the pipequad behaviour around 425-437 
+Insert a   $opts->{prefork}->( $myfd, $childfd ) if $opts->{prefork};  in a few places 
+gmarler
+Well, there is the block around FD_VIA_SOCKETPAIR, how about between the socketpair and configure in there? 
+LeoNerd
+yah 
+gmarler
+Oh, but you want this to work for all of the filehandle cases... 
+LeoNerd
+literally line after the   my ( $myfd, ... )  in each 
+Yeah, that's the messy bit. It'd have to be in four places, because of that split. The pipequad makes it complicated 
+gmarler
+Well, start with socketpair, document as only supported for such initially, then expand from there. 
+gmarler
+Pity - it's not in git, so I can't (as easily as I would like) submit a pull request to you 
+LeoNerd
+Well that's fine; I'm happy to write it 
+(also I'm quite happy with patches, as they've worked ever since the mid 1990s ;) ) 
+gmarler
+That'll be fine.
