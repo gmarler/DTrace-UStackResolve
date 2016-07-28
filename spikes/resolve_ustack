@@ -44,8 +44,8 @@ Readonly::Scalar my $DTRACE => "/sbin/dtrace";
 Log::Log4perl->easy_init($INFO);
 Log::Any::Adapter->set('Log4perl');
 
-our ($dscript_out, $dscript_err) =
-    ( "dscript.out", "dscript.err" );
+our ($dscript_out, $dscript_err, $dtrace_has_exited) =
+    ( "dscript.out", "dscript.err", 0 );
 our ($resolved_fname) = ( "" );
 
 my ($execname,$dtrace_type,$execpath,$exec_basename,$pids_aref,@pids,$tid);
@@ -987,6 +987,11 @@ sub start_dtrace {
         }
 
         $dscript_output_fh->close;
+        # Note that DTrace has stopped.  When end of output file
+        # has been reached by resolver, then exit script elsewhere.
+        $dtrace_has_exited = 1;
+        #
+        # This is what we used to do:
         # At this point, DTrace has stopped producing output, but we're
         # likely not done resolving it yet - let things run...
         #$loop->stop;
@@ -1039,7 +1044,7 @@ sub start_stack_resolve {
     #},
 
     on_read => sub {
-      my ( $self, $buffref ) = @_;
+      my ( $self, $buffref, $eof ) = @_;
       # as we read the file to resolve symbols in, we often need to know
       # what the current PID is for the data which follows to do an accurate
       # symbol table lookup
@@ -1060,6 +1065,15 @@ sub start_stack_resolve {
         }
         $line = resolve_symbols( $line, $current_pid );
         $resolved_fh->print( "$line\n" );
+      }
+
+      # This might not be the cleanest way to go about this...
+      if ($eof) {
+        if ($dtrace_has_exited) {
+          say "DTrace Script has exited, and read everything it produced - EXITING";
+          $loop->stop;
+          exit(0);
+        }
       }
 
       return 0;

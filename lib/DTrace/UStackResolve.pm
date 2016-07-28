@@ -189,6 +189,15 @@ sub _sanity_check_type {
     unless (exists($dtrace_types{$self->type}));
 }
 
+# Flag to know when DTrace has exited, so we can know that the unresolved output
+# file will no longer grow, and we can stop working when we reach the end of
+# that file
+has 'dtrace_has_exited' => (
+  is          => 'rw',
+  isa         => 'Boolean',
+  default     => 0,
+);
+
 #
 # INPUT FILE ATTRIBUTES
 #
@@ -853,27 +862,24 @@ sub _start_dtrace_capture {
 
   say "Going to execute: $cmd";
 
-  my $socket_buffers_grown;
-
   my $dtrace_process =
     IO::Async::Process->new(
       command => $cmd,
       stdout  => {
         via     => 'socketpair',
+        prefork => sub {
+          my ($parentfd, $childfd) = @_;
+
+          $parentfd->setsockopt(SOL_SOCKET, SO_RCVBUF, 50*1024*1024);
+          $parentfd->setsockopt(SOL_SOCKET, SO_SNDBUF, 50*1024*1024);
+          $childfd ->setsockopt(SOL_SOCKET, SO_RCVBUF, 50*1024*1024);
+          $childfd ->setsockopt(SOL_SOCKET, SO_SNDBUF, 50*1024*1024);
+        },
         on_read => sub {
           my ( $stream, $buffref ) = @_;
 
-          if (not $socket_buffers_grown) {
-            $stream->configure( read_len => 1024 * 1024 );
-            $stream->read_handle->setsockopt(SOL_SOCKET, SO_RCVBUF, 50*1024*1024);
-            $stream->read_handle->setsockopt(SOL_SOCKET, SO_SNDBUF, 50*1024*1024);
-            say "SO_RCVBUF: " . $stream->read_handle->getsockopt(SOL_SOCKET,SO_RCVBUF);
-            say "SO_SNDBUF: " . $stream->read_handle->getsockopt(SOL_SOCKET,SO_SNDBUF);
-            $socket_buffers_grown++;
-          }
-
           while ( length( $$buffref ) ) {
-            my $data = substr($$buffref,0, 1024*1024 ,'');
+            my $data = substr($$buffref,0, 5*1024*1024 ,'');
             $unresolved_out_fh->print( $data );
           }
 
@@ -914,8 +920,15 @@ sub _start_dtrace_capture {
         }
 
         $unresolved_out_fh->close;
-        $loop->stop;
-        exit(1);
+        # Note that DTrace has stopped.  When end of output file
+        # has been reached by resolver, then exit script elsewhere.
+        $self->dtrace_has_exited(1);
+        #
+        # This is what we used to do:
+        # At this point, DTrace has stopped producing output, but we're
+        # likely not done resolving it yet - let things run...FOREVER
+        #$loop->stop;
+        #exit(1);
       },
       # on_exception => sub {
       #   $unresolved_out_fh->close;
@@ -1049,7 +1062,7 @@ sub start_stack_resolve {
     #},
 
     on_read => sub {
-      my ( $self, $buffref ) = @_;
+      my ( $self, $buffref, $eof ) = @_;
       # as we read the file to resolve symbols in, we often need to know
       # what the current PID is for the data which follows to do an accurate
       # symbol table lookup
@@ -1070,6 +1083,14 @@ sub start_stack_resolve {
         }
         $line = $obj->_resolve_symbol( $line, $current_pid );
         $resolved_fh->print( "$line\n" );
+      }
+
+      # This might not be the cleanest way to go about this...
+      if ($eof) {
+        if ($obj->dtrace_has_exited) {
+          say "DTrace Script has exited, and read everything it produced - EXITING";
+          exit(0);
+        }
       }
 
       return 0;
