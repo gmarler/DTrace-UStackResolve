@@ -499,6 +499,7 @@ sub build_dtrace_script_for_execname {
   my ($execname) = shift;
 
   my $script = <<'END';
+#pragma D option destructive
 #pragma D option noresolve
 #pragma D option quiet
 #pragma D option ustackframes=100
@@ -534,6 +535,7 @@ tick-1sec
 END
 
   my $whatfor_script = <<'WHATFOR_END';
+#pragma D option destructive
 #pragma D option noresolve
 #pragma D option quiet
 #pragma D option ustackframes=100
@@ -623,6 +625,7 @@ sub build_dtrace_script_for_pids {
   my ($pids_aref) = shift;
 
   my $script = <<'END';
+#pragma D option destructive
 #pragma D option noresolve
 #pragma D option quiet
 #pragma D option ustackframes=100
@@ -658,6 +661,7 @@ tick-1sec
 END
 
   my $whatfor_script = <<'WHATFOR_END';
+#pragma D option destructive
 #pragma D option noresolve
 #pragma D option quiet
 #pragma D option ustackframes=100
@@ -750,6 +754,7 @@ sub build_dtrace_script_for_pid_tid {
   my ($tid) = shift;
 
   my $script = <<'END';
+#pragma D option destructive
 #pragma D option noresolve
 #pragma D option quiet
 #pragma D option ustackframes=100
@@ -785,6 +790,7 @@ tick-1sec
 END
 
   my $whatfor_script = <<'WHATFOR_END';
+#pragma D option destructive
 #pragma D option noresolve
 #pragma D option quiet
 #pragma D option ustackframes=100
