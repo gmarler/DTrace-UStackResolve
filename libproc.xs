@@ -4,6 +4,11 @@
 #include "XSUB.h"
 #include "ppport.h"
 
+#include <demangle.h>
+
+#include <procfs.h>
+#include <sys/procfs.h>
+
 #include "libproc.h"
 
 /* Pre-XS C Function Declarations */
