@@ -194,7 +194,7 @@ sub _sanity_check_type {
 # that file
 has 'dtrace_has_exited' => (
   is          => 'rw',
-  isa         => 'Boolean',
+  isa         => 'Bool',
   default     => 0,
 );
 
