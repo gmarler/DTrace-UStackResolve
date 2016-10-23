@@ -315,7 +315,7 @@ has 'pids' => (
   is          => 'rw',
   isa         => 'ArrayRef[Int]',
   #builder     => '_build_pids',
-  required    => 1,
+  #required    => 1,
   #lazy        => 1,
 );
 
