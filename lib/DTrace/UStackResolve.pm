@@ -1254,4 +1254,25 @@ sub _gen_symbol_table {
   return \@sorted_symtab;
 }
 
+# Grab ELF Type:
+# - ET_EXEC for a.out
+# - ET_DYN  for dynamic library
+# Ignore all else
+sub _elf_type {
+  my ($file) = shift;
+
+  my ($ELFDUMP) = $self->ELFDUMP;
+  my $out = capture($ELFDUMP, "-e", $file);
+
+  #say $out;
+  $out =~ m/^ \s+ e_type: \s+ (?<elf_type>[^\n]+)/smx;
+
+  my $elf_type = $+{elf_type};
+
+  say "[$file] ELF Type: $elf_type";
+
+  return $elf_type;
+}
+
+
 1;
