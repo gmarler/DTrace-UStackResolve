@@ -130,6 +130,18 @@ has 'loop' => (
   lazy        => 1,
 );
 
+#
+# Will be passed a list of PIDs or a list of binaries
+# PIDs (live processes) and executables (a.outs) must be handled differently
+#
+# - A live process will immediately get all of the dynamic objects and their
+#   symbols
+#
+# - Reading the symbol table from an a.out will only show the a.out object's
+#   personal symbol table.  You must manually use ldd to extract all the
+#   library names and then extract those symbol tables independently.
+#
+
 =method new()
 
 The constructor takes the following attributes:
