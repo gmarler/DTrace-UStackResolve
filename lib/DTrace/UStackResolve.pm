@@ -87,6 +87,20 @@ subtype 'CHI',
   where { blessed($_) =~ /^CHI::/ };
 
 # Class Attribute Constants
+class_has 'LDD' => (
+  init_arg    => undef,
+  is          => 'ro',
+  isa         => 'Str',
+  default     => "/bin/ldd",
+);
+
+class_has 'PLDD' => (
+  init_arg    => undef,
+  is          => 'ro',
+  isa         => 'Str',
+  default     => "/bin/pldd",
+);
+
 class_has 'PMAP' => (
   init_arg    => undef,
   is          => 'ro',
