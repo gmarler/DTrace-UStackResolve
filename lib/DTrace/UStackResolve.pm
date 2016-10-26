@@ -1293,6 +1293,11 @@ sub _exec_symbol_tuples {
   # TODO:
   # If the symbol table file map already contains this file, skip it
   # return if exists($symbols{$file});
+  #
+  # NOTE: The base address for all a.out's is identical across all instances of
+  # the executable running.  Thus, we only need to do this once, and make sure
+  # all instances are loaded from the exact same file to know our lookups will
+  # always be good.
 
   # Extract load address from the ELF file
   my $load_address = get_exec_load_address($file);
@@ -1316,11 +1321,32 @@ sub _get_exec_load_address {
     return; # undef
   }
   say $+{load_address_in_hex};
-  my $load_address = Math::BigInt->new($+{load_address_in_hex});
+  # TODO: Confirm we don't need Math::BigInt here
+  #my $load_address = Math::BigInt->new($+{load_address_in_hex});
+  my $load_address = $+{load_address_in_hex};
 
   say "LOAD ADDRESS:       " . $load_address;
-  say "LOAD ADDRESS (hex): " . $load_address->as_hex();
+  my $hex_load_address = sprintf("%#x");
+  # ->as_hex() specific to Math::BigInt
+  # say "LOAD ADDRESS (hex): " . $load_address->as_hex();
+  say "LOAD ADDRESS (hex): " . $hex_load_address;
   return $load_address;
+}
+
+# Get list of dynamic library symbol tuples
+sub _dyn_symbol_tuples {
+  my ($file) = shift;
+
+  # TODO:
+  # If the symbol table file map already contains this file, skip it
+  # return if exists($symbols{$file});
+
+  # NOTE: Load address for dynamic object not needed - DTrace helps us out
+  # there in the unresolved ustack() output by prefixing the addresses by the
+  # implied base address.  So we don't even have to keep a table of the base
+  # addresses of these per PID.  Yahoo!
+
+  # Extract symbol table
 }
 
 
