@@ -1286,6 +1286,20 @@ sub _elf_type {
   return $elf_type;
 }
 
+# Get list of symbol tuples from a given file, properly offset
+sub _exec_symbol_tuples {
+  my ($file) = shift;
+
+  # TODO:
+  # If the symbol table file map already contains this file, skip it
+  # return if exists($symbols{$file});
+
+  # Extract load address from the ELF file
+  my $load_address = get_exec_load_address($file);
+
+  # Extract symbol table
+}
+
 # Get a.out load address
 sub _get_exec_load_address {
   my ($file) = shift;
