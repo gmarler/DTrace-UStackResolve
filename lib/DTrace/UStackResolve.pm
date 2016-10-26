@@ -108,6 +108,13 @@ class_has 'PGREP' => (
   default     => "/bin/pgrep",
 );
 
+class_has 'ELFDUMP' => (
+  init_arg    => undef,
+  is          => 'ro',
+  isa         => 'Str',
+  default     => "/usr/bin/elfdump",
+);
+
 class_has 'DTRACE' => (
   init_arg    => undef,
   is          => 'ro',
