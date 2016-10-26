@@ -320,15 +320,17 @@ sub _build_resolved_out_fh {
   return $resolved_fh;
 }
 
-
+# TODO: We actually should look at some way to uniquely identify the binary, as
+#       that's the only thing whose changing matters.  Perhaps the inode?
+#       Anything about the start time is irrelevant.
+#       Also worth noting that any of the dynamic objects changing will also
+#       require the cache for that object's file to be udpated
 # The start time(s) of the execname we started this up
 # for.  The point of this is to detect when the value increases,
 # indicating that we need to recalculate the:
 # - symbol cache
 # - Red-Black or AA symbol lookup tree
 # - direct lookup cache
-# TODO: A check for this should be done whenever a new PID is detected
-#       in the DTrace output
 has 'pid_starttime' => (
   is          => 'rw',
   isa         => 'HashRef[Int]',
@@ -361,6 +363,9 @@ has 'dynamic_library_paths' => (
   clearer     => '_clear_dynamic_library_paths',
   predicate   => '_has_dynamic_library_paths',
 );
+
+# TODO: Change to using ldd/pldd as needed
+#
 
 =head2  _build_dynamic_library_paths
 
