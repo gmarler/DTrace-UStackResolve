@@ -1286,5 +1286,29 @@ sub _elf_type {
   return $elf_type;
 }
 
+# Get a.out load address
+sub _get_exec_load_address {
+  my ($file) = shift;
+
+  my ($ELFDUMP) = $self->ELFDUMP;
+  my $out = capture($ELFDUMP, "-p", $file);
+
+  if ($out =~ m/ \s+ p_vaddr: \s+ (?<load_address_in_hex>\S+) \s+ [^\n]+\n
+                 [^\n]+ p_type: \s+ \[ \s+ PT_LOAD \s+ \]/smx) {
+    # We're all good
+  } else {
+    # SOMETHING IS WRONG
+    say "UNABLE TO FIND FIRST PT_LOAD PROGRAM HEADER";
+    return; # undef
+  }
+  say $+{load_address_in_hex};
+  my $load_address = Math::BigInt->new($+{load_address_in_hex});
+
+  say "LOAD ADDRESS:       " . $load_address;
+  say "LOAD ADDRESS (hex): " . $load_address->as_hex();
+  return $load_address;
+}
+
+
 
 1;
