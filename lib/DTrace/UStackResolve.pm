@@ -1294,7 +1294,7 @@ sub _gen_symbol_table {
 # - ET_DYN  for dynamic library
 # Ignore all else
 sub _elf_type {
-  my ($file) = shift;
+  my ($self, $file) = shift;
 
   my ($ELFDUMP) = $self->ELFDUMP;
   my $out = capture($ELFDUMP, "-e", $file);
@@ -1311,7 +1311,7 @@ sub _elf_type {
 
 # Get list of symbol tuples from a given file, properly offset
 sub _exec_symbol_tuples {
-  my ($file) = shift;
+  my ($self, $file) = shift;
 
   # TODO:
   # If the symbol table file map already contains this file, skip it
@@ -1323,14 +1323,14 @@ sub _exec_symbol_tuples {
   # always be good.
 
   # Extract load address from the ELF file
-  my $load_address = get_exec_load_address($file);
+  my $load_address = $self->get_exec_load_address($file);
 
   # Extract symbol table
 }
 
 # Get a.out load address
 sub _get_exec_load_address {
-  my ($file) = shift;
+  my ($self, $file) = shift;
 
   my ($ELFDUMP) = $self->ELFDUMP;
   my $out = capture($ELFDUMP, "-p", $file);
@@ -1358,7 +1358,7 @@ sub _get_exec_load_address {
 
 # Get list of dynamic library symbol tuples
 sub _dyn_symbol_tuples {
-  my ($file) = shift;
+  my ($self, $file) = shift;
 
   # TODO:
   # If the symbol table file map already contains this file, skip it
