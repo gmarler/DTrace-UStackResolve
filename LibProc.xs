@@ -124,10 +124,10 @@ function_iter(void *callback_arg, const GElf_Sym *sym, const char *sym_name)
       case 0:
         /* Only record if the function symbol is "real" */
         if (sym->st_size > 0) {
-          strcpy(callback_data->tuples[callback_data->function_count]->demangled_name,
+          strcpy(callback_data->tuples[callback_data->function_count].demangled_name,
                  proto_buffer);
-          callback_data->tuples[callback_data->function_count]->symvalue = sym->st_value;
-          callback_data->tuples[callback_data->function_count]->symsize  = sym->st_size;
+          callback_data->tuples[callback_data->function_count].symvalue = sym->st_value;
+          callback_data->tuples[callback_data->function_count].symsize  = sym->st_size;
           callback_data->function_count++;
         }
         printf("%-32s %llu %llu\n", proto_buffer, sym->st_value, sym->st_size);
