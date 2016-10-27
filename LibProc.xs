@@ -125,7 +125,8 @@ function_iter(void *callback_arg, const GElf_Sym *sym, const char *sym_name)
         printf("%-32s %llu %llu\n", proto_buffer, sym->st_value, sym->st_size);
         break;
       case DEMANGLE_ENAME:
-        printf("SKIPPING INVALID MANGLED NAME %s\n",sym_name);
+        printf("%-32s %llu %llu\n", sym_name, sym->st_value, sym->st_size);
+        /* printf("SKIPPING INVALID MANGLED NAME %s\n",sym_name); */
         break;
       case DEMANGLE_ESPACE:
         croak("Demangle BUFFER TOO SMALL\n");
