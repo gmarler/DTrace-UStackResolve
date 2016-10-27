@@ -22,7 +22,10 @@ typedef struct {
 /* used to pass information between Pobject_iter()'s caller and callback */
 typedef struct {
   struct ps_prochandle  *file_pshandle;
+  /* The number of slots we've populated with symbols */
   long                   function_count;
+  /* The number of slots we've allocated to handle */
+  long                   max_symbol_count;
   symtuple_t            *tuples;
   /* TODO: Add something to show what the type of the file is, so we know how to
    * handle symbol resolution properly - static a.out or dynamic library */
@@ -34,14 +37,14 @@ int         proc_object_iter(void *, void *, const char *);
 int         function_iter(void *arg,
                           const GElf_Sym *sym,
                           const char *func_name);
-symtuple_t *extract_symtuples(char *filename);
+callback_data_t *extract_symtuples(char *filename);
 
 
 /* C Functions */
 
 /* Function used to grab ps_prochandle, invoke Pobject_Iter(), free up
  * resources, then return array of structs to XS routine */
-symtuple_t *
+callback_data_t *
 extract_symtuples(char *filename) {
   int                   perr;
   struct ps_prochandle *exec_handle;
@@ -73,7 +76,7 @@ extract_symtuples(char *filename) {
 
   Pfree(exec_handle);
 
-  return(cb_data->tuples);
+  return(cb_data);
 }
 
 /* Function called from within Pobject_iter() for each object
@@ -152,7 +155,6 @@ function_iter(void *callback_arg, const GElf_Sym *sym, const char *sym_name)
               demangle_result);
         break;
     }
-    (((callback_data_t *)callback_arg)->function_count)++;
   } else {
     croak("NULL FUNCNAME");
   }
@@ -176,9 +178,9 @@ PROTOTYPES: ENABLED
 AV *
 extract_symtab(char *filename)
   PREINIT:
-    char       *my_option;
-    AV         *rval;
-    symtuple_t *symtuple_array;
+    char            *my_option;
+    AV              *rval;
+    callback_data_t *symtuple_array;
   CODE:
     if (items == 1) {
       if (! SvPOK( ST(0) )) {
@@ -190,6 +192,7 @@ extract_symtab(char *filename)
     }
 
     symtuple_array = extract_symtuples(my_option);
+    printf("We pulled %ld symbols\n",symtuple_array->function_count);
 
     rval = newAV();
 
