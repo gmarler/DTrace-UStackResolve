@@ -1,4 +1,4 @@
-package DTrace::UStackResolve::libproc;
+package DTrace::UStackResolve::LibProc;
 
 use strict;
 use warnings;
@@ -8,7 +8,7 @@ use XSLoader;
 
 # ABSTRACT: An interface to Solaris libproc implemented in Perl XS
 
-XSLoader::load('DTrace::UStackResolve::libproc', $VERSION);
+XSLoader::load('DTrace::UStackResolve::LibProc', $VERSION);
 
 1;
 

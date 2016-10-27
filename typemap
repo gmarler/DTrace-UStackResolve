@@ -1,0 +1,8 @@
+
+#dtrace_bufdata_t *           T_PTR
+#const dtrace_bufdata_t *     T_PTR
+#
+AV*                          T_AVREF_REFCOUNT_FIXED
+HV*                          T_HVREF_REFCOUNT_FIXED
+CV*                          T_CVREF_REFCOUNT_FIXED
+SVREF                        T_SVREF_REFCOUNT_FIXED

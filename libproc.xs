@@ -5,28 +5,32 @@
 #include "ppport.h"
 
 #include <demangle.h>
-
+/*
 #include <procfs.h>
 #include <sys/procfs.h>
+*/
 
 #include "libproc.h"
 
 /* Pre-XS C Function Declarations */
+typedef struct {
+  char                demangled_name[8192];
+  unsigned long long  symvalue;
+  unsigned long long  symsize;
+} symtuple_t;
+
 /* used to pass information between Pobject_iter()'s caller and callback */
 typedef struct {
   struct ps_prochandle  *file_pshandle;
   long                   function_count;
+  symtuple_t            *tuples;
   /* TODO: Add something to show what the type of the file is, so we know how to
    * handle symbol resolution properly - static a.out or dynamic library */
-} data_t;
+} callback_data_t;
 
-typedef struct {
-  char                demangled_name[8192],
-  unsigned long long  symvalue,
-  unsigned long long  symsize
-} symtuple_t;
 
-int         proc_object_iter(void *, const prmap_t *, const char *);
+
+int         proc_object_iter(void *, void *, const char *);
 int         function_iter(void *arg,
                           const GElf_Sym *sym,
                           const char *func_name);
@@ -41,6 +45,21 @@ symtuple_t *
 extract_symtuples(char *filename) {
   int                   perr;
   struct ps_prochandle *exec_handle;
+  callback_data_t      *cb_data;
+
+  /* allocate memory for callback data structure to pass around */
+  if ( (cb_data = malloc(sizeof(callback_data_t))) == NULL ) {
+    croak("%s unable to allocate memory for %s\n",
+          "DTrace::UStackResolve::LibProc::extract_symtuples",
+          "callback_data_t");
+  }
+
+  /* Allocate room for first 1000 symbol table function tuples */
+  if ( (cb_data->tuples = malloc(sizeof(symtuple_t) * 1000)) == NULL ) {
+    croak("%s unable to allocate memory for %s\n",
+          "DTrace::UStackResolve::LibProc::extract_symtuples",
+          "first 1000 tuples");
+  }
 
   /* Use PGRAB_RDONLY to avoid perturbing the target PID */
   if ((exec_handle = Pgrab_file(filename, &perr)) == NULL) {
@@ -48,22 +67,26 @@ extract_symtuples(char *filename) {
     exit(2);
   }
 
-  /* NOTE: Passing pshandle in as cd argument for use as first argument of
-   * Psymbol_iter later */
-  Pobject_iter(exec_handle, proc_object_iter, (void *)NULL);
+  /* NOTE: Passing pshandle in as cb_data argument for use as first argument of
+   * Psymbol_iter later
+   * TODO: Fix the case of proc_object_iter to void *, which is a hack */
+  Pobject_iter(exec_handle, (void *)proc_object_iter, (void *)cb_data);
 
   Pfree(exec_handle);
+
+  return(cb_data->tuples);
 }
 
 /* Function called from within Pobject_iter() for each object
  * (usually just one) */
 int
-proc_object_iter(void *callback_arg, const prmap_t *pmp, const char *object_name)
+proc_object_iter(void *callback_arg, void *pmp, const char *object_name)
 {
-  data_t                procfile_data;
+  callback_data_t      *cb_data;
   struct ps_prochandle *file_pshandle;
   int                   perr;
 
+  cb_data = (callback_data_t *)callback_arg;
 
   /* printf("proc_object_iter: %-120s\n", object_name); */
   /* For each object name, grab the file, then iterate over the objects,
@@ -73,15 +96,15 @@ proc_object_iter(void *callback_arg, const prmap_t *pmp, const char *object_name
   }
   /* NOTE: Passing file_pshandle in for use as callback argument for
    * Psymbol_iter later */
-  procfile_data.file_pshandle = file_pshandle;
-  procfile_data.function_count = 0;
+  cb_data->file_pshandle  = file_pshandle;
+  cb_data->function_count = 0;
 
   Psymbol_iter(file_pshandle,
                object_name,
                PR_SYMTAB,
                BIND_GLOBAL | TYPE_FUNC,
-               function_iter,
-               (void *)&procfile_data);
+               (void *)function_iter,
+               (void *)cb_data);
 
   /* printf("FUNCTION COUNT: %ld\n", procfile_data.function_count); */
 
@@ -92,8 +115,8 @@ proc_object_iter(void *callback_arg, const prmap_t *pmp, const char *object_name
 int
 function_iter(void *callback_arg, const GElf_Sym *sym, const char *sym_name)
 {
-  data_t procfile_data = (*((data_t *)callback_arg));
-  char   proto_buffer[8192];
+  callback_data_t  procfile_data = (*((callback_data_t *)callback_arg));
+  char             proto_buffer[8192];
 
   if (sym_name != NULL) {
     int demangle_result;
@@ -115,7 +138,7 @@ function_iter(void *callback_arg, const GElf_Sym *sym, const char *sym_name)
         exit(6);
         break;
     }
-    (((data_t *)callback_arg)->function_count)++;
+    (((callback_data_t *)callback_arg)->function_count)++;
   } else {
     printf("\tNULL FUNCNAME\n");
   }
@@ -126,10 +149,31 @@ function_iter(void *callback_arg, const GElf_Sym *sym, const char *sym_name)
 
 /* And now the XS code, for C functions we want to access directly from Perl */
 
-MODULE = DTrace::UStackResolve::libproc  PACKAGE = DTrace::UStackResolve::libproc
+/* Note the name of LibProc instead of libproc, to avoid collision with
+ * libproc.so */
+
+MODULE = DTrace::UStackResolve::LibProc  PACKAGE = DTrace::UStackResolve::LibProc
 
 # XS code
 
 PROTOTYPES: ENABLED
 
+AV *
+extract_symtab(char *filename)
+  PREINIT:
+    char       *my_option;
+    AV         *rval;
+    symtuple_t *symtuple_array;
+  CODE:
+    if (items == 1) {
+      if (! SvPOK( ST(1) )) {
+        croak("setopt: Option must be a string");
+      }
+      my_option = (char *)SvPV_nolen(ST(1));
+    } else {
+      croak("extract_symtab: argument must be a filename");
+    }
+    rval = newAV();
+
+    symtuple_array = extract_symtuples(my_option);
 
