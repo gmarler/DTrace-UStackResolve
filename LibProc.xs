@@ -172,7 +172,12 @@ extract_symtab(char *filename)
     } else {
       croak("extract_symtab: argument must be a filename");
     }
-    rval = newAV();
 
     symtuple_array = extract_symtuples(my_option);
+
+    rval = newAV();
+
+    RETVAL = rval;
+  OUTPUT:
+    RETVAL
 
