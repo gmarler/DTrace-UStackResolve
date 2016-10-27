@@ -153,7 +153,7 @@ function_iter(void *callback_arg, const GElf_Sym *sym, const char *sym_name)
  * libproc.so */
 
 
-MODULE = DTrace::UStackResolve::LibProc  PACKAGE = DTrace::UStackResolve::LibProc
+MODULE = DTrace::UStackResolve  PACKAGE = DTrace::UStackResolve
 
 # XS code
 

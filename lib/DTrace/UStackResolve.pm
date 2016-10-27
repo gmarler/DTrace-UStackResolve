@@ -52,6 +52,10 @@ our %dtrace_types = (
 #
 # ABSTRACT: Resolve User Stacks from DTrace for Large Binaries
 
+require XSLoader;
+
+XSLoader::load('DTrace::UStackResolve', $VERSION);
+
 =head1 SYNOPSIS
 
 =head1 DESCRIPTON
