@@ -167,7 +167,7 @@ extract_symtab(char *filename)
     symtuple_t *symtuple_array;
   CODE:
     if (items == 1) {
-      if (! SvPOK( ST(1) )) {
+      if (! SvPOK( ST(0) )) {
         croak("setopt: Option must be a string");
       }
       my_option = (char *)SvPV_nolen(ST(1));
