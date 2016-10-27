@@ -129,19 +129,19 @@ function_iter(void *callback_arg, const GElf_Sym *sym, const char *sym_name)
           callback_data->tuples[callback_data->function_count].symvalue = sym->st_value;
           callback_data->tuples[callback_data->function_count].symsize  = sym->st_size;
           callback_data->function_count++;
+          printf("%-32s %llu %llu\n", proto_buffer, sym->st_value, sym->st_size);
         }
-        printf("%-32s %llu %llu\n", proto_buffer, sym->st_value, sym->st_size);
         break;
       case DEMANGLE_ENAME:
          /* Only record if the function symbol is "real" */
         if (sym->st_size > 0) {
-          strcpy(callback_data->tuples[callback_data->function_count]->demangled_name,
+          strcpy(callback_data->tuples[callback_data->function_count].demangled_name,
                  sym_name);
-          callback_data->tuples[callback_data->function_count]->symvalue = sym->st_value;
-          callback_data->tuples[callback_data->function_count]->symsize  = sym->st_size;
+          callback_data->tuples[callback_data->function_count].symvalue = sym->st_value;
+          callback_data->tuples[callback_data->function_count].symsize  = sym->st_size;
           callback_data->function_count++;
+          printf("%-32s %llu %llu\n", sym_name, sym->st_value, sym->st_size);
         }
-       printf("%-32s %llu %llu\n", sym_name, sym->st_value, sym->st_size);
         /* printf("SKIPPING INVALID MANGLED NAME %s\n",sym_name); */
         break;
       case DEMANGLE_ESPACE:
