@@ -63,6 +63,7 @@ extract_symtuples(char *filename) {
           "DTrace::UStackResolve::LibProc::extract_symtuples",
           "first 1000 tuples");
   }
+  cb_data->max_symbol_count = 1000;
 
   /* Use PGRAB_RDONLY to avoid perturbing the target PID */
   if ((exec_handle = Pgrab_file(filename, &perr)) == NULL) {
