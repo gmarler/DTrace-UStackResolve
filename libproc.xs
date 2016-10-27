@@ -21,6 +21,9 @@ typedef struct {
 } data_t;
 
 typedef struct {
+  char                demangled_name[8192],
+  unsigned long long  symvalue,
+  unsigned long long  symsize
 } symtuple_t;
 
 int         proc_object_iter(void *, const prmap_t *, const char *);
