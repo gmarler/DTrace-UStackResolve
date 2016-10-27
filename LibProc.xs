@@ -114,7 +114,7 @@ proc_object_iter(void *callback_arg, void *pmp, const char *object_name)
 int
 function_iter(void *callback_arg, const GElf_Sym *sym, const char *sym_name)
 {
-  callback_data_t  callback_data = (*((callback_data_t *)callback_arg));
+  callback_data_t *callback_data = (callback_data_t *)callback_arg;
   char             proto_buffer[8192];
 
   if (sym_name != NULL) {
