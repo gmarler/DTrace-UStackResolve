@@ -170,7 +170,7 @@ extract_symtab(char *filename)
       if (! SvPOK( ST(0) )) {
         croak("setopt: Option must be a string");
       }
-      my_option = (char *)SvPV_nolen(ST(1));
+      my_option = (char *)SvPV_nolen(ST(0));
     } else {
       croak("extract_symtab: argument must be a filename");
     }
