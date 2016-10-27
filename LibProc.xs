@@ -114,7 +114,7 @@ proc_object_iter(void *callback_arg, void *pmp, const char *object_name)
 int
 function_iter(void *callback_arg, const GElf_Sym *sym, const char *sym_name)
 {
-  callback_data_t  procfile_data = (*((callback_data_t *)callback_arg));
+  callback_data_t  callback_data = (*((callback_data_t *)callback_arg));
   char             proto_buffer[8192];
 
   if (sym_name != NULL) {
@@ -122,10 +122,26 @@ function_iter(void *callback_arg, const GElf_Sym *sym, const char *sym_name)
     demangle_result = cplus_demangle(sym_name, proto_buffer, (size_t)8192);
     switch (demangle_result) {
       case 0:
+        /* Only record if the function symbol is "real" */
+        if (sym->st_size > 0) {
+          strcpy(callback_data->tuples[callback_data->function_count]->demangled_name,
+                 proto_buffer);
+          callback_data->tuples[callback_data->function_count]->symvalue = sym->st_value;
+          callback_data->tuples[callback_data->function_count]->symsize  = sym->st_size;
+          callback_data->function_count++;
+        }
         printf("%-32s %llu %llu\n", proto_buffer, sym->st_value, sym->st_size);
         break;
       case DEMANGLE_ENAME:
-        printf("%-32s %llu %llu\n", sym_name, sym->st_value, sym->st_size);
+         /* Only record if the function symbol is "real" */
+        if (sym->st_size > 0) {
+          strcpy(callback_data->tuples[callback_data->function_count]->demangled_name,
+                 sym_name);
+          callback_data->tuples[callback_data->function_count]->symvalue = sym->st_value;
+          callback_data->tuples[callback_data->function_count]->symsize  = sym->st_size;
+          callback_data->function_count++;
+        }
+       printf("%-32s %llu %llu\n", sym_name, sym->st_value, sym->st_size);
         /* printf("SKIPPING INVALID MANGLED NAME %s\n",sym_name); */
         break;
       case DEMANGLE_ESPACE:
