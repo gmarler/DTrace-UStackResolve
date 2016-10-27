@@ -20,11 +20,40 @@ typedef struct {
    * handle symbol resolution properly - static a.out or dynamic library */
 } data_t;
 
-int proc_object_iter(void *, const prmap_t *, const char *);
-int function_iter(void *arg, const GElf_Sym *sym, const char *func_name);
+typedef struct {
+} symtuple_t;
+
+int         proc_object_iter(void *, const prmap_t *, const char *);
+int         function_iter(void *arg,
+                          const GElf_Sym *sym,
+                          const char *func_name);
+symtuple_t *extract_symtuples(char *filename);
 
 
 /* C Functions */
+
+/* Function used to grab ps_prochandle, invoke Pobject_Iter(), free up
+ * resources, then return array of structs to XS routine */
+symtuple_t *
+extract_symtuples(char *filename) {
+  int                   perr;
+  struct ps_prochandle *exec_handle;
+
+  /* Use PGRAB_RDONLY to avoid perturbing the target PID */
+  if ((exec_handle = Pgrab_file(filename, &perr)) == NULL) {
+    printf("Unable to grab file: %s\n",Pgrab_error(perr));
+    exit(2);
+  }
+
+  /* NOTE: Passing pshandle in as cd argument for use as first argument of
+   * Psymbol_iter later */
+  Pobject_iter(exec_handle, proc_object_iter, (void *)NULL);
+
+  Pfree(exec_handle);
+}
+
+/* Function called from within Pobject_iter() for each object
+ * (usually just one) */
 int
 proc_object_iter(void *callback_arg, const prmap_t *pmp, const char *object_name)
 {
@@ -56,6 +85,7 @@ proc_object_iter(void *callback_arg, const prmap_t *pmp, const char *object_name
   return 0;
 }
 
+/* Function called from within Psymbol_iter() for each symbol */
 int
 function_iter(void *callback_arg, const GElf_Sym *sym, const char *sym_name)
 {
