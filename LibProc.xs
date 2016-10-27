@@ -125,13 +125,14 @@ function_iter(void *callback_arg, const GElf_Sym *sym, const char *sym_name)
         printf("%-32s %llu %llu\n", proto_buffer, sym->st_value, sym->st_size);
         break;
       case DEMANGLE_ENAME:
-        croak("INVALID MANGLED NAME\n");
+        printf("SKIPPING INVALID MANGLED NAME %s\n",sym_name);
         break;
       case DEMANGLE_ESPACE:
         croak("Demangle BUFFER TOO SMALL\n");
         break;
       default:
-        croak("cplus_demangle() failed with unknown error %d\n",demangle_result);
+        croak("cplus_demangle() failed with unknown error %d\n",
+              demangle_result);
         break;
     }
     (((callback_data_t *)callback_arg)->function_count)++;
