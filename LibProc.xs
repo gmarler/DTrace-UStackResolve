@@ -63,8 +63,7 @@ extract_symtuples(char *filename) {
 
   /* Use PGRAB_RDONLY to avoid perturbing the target PID */
   if ((exec_handle = Pgrab_file(filename, &perr)) == NULL) {
-    printf("Unable to grab file: %s\n",Pgrab_error(perr));
-    exit(2);
+    croak("Unable to grab file: %s\n",Pgrab_error(perr));
   }
 
   /* NOTE: Passing pshandle in as cb_data argument for use as first argument of
@@ -120,29 +119,26 @@ function_iter(void *callback_arg, const GElf_Sym *sym, const char *sym_name)
 
   if (sym_name != NULL) {
     int demangle_result;
-    cplus_demangle(sym_name, proto_buffer, (size_t)8192);
+    demangle_result = cplus_demangle(sym_name, proto_buffer, (size_t)8192);
     switch (demangle_result) {
       case 0:
         printf("%-32s %llu %llu\n", proto_buffer, sym->st_value, sym->st_size);
         break;
       case DEMANGLE_ENAME:
-        printf("INVALID MANGLED NAME\n");
-        exit(4);
+        croak("INVALID MANGLED NAME\n");
         break;
       case DEMANGLE_ESPACE:
-        printf("Demangle BUFFER TOO SMALL\n");
-        exit(5);
+        croak("Demangle BUFFER TOO SMALL\n");
         break;
       default:
-        printf("cplus_demangle() failed with unknown error %d\n",demangle_result);
-        exit(6);
+        croak("cplus_demangle() failed with unknown error %d\n",demangle_result);
         break;
     }
     (((callback_data_t *)callback_arg)->function_count)++;
   } else {
-    printf("\tNULL FUNCNAME\n");
+    croak("NULL FUNCNAME");
   }
-  return 0;
+  return(0);
 }
 
 
