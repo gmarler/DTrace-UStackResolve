@@ -181,7 +181,10 @@ extract_symtab(char *filename)
   PREINIT:
     char            *my_option;
     AV              *rval;
-    callback_data_t *symtuple_array;
+    HV              *hashref;
+    callback_data_t *raw_symbol_struct;
+    symtuple_t      *symtuple_array;
+    long             i;
   CODE:
     if (items == 1) {
       if (! SvPOK( ST(0) )) {
@@ -192,10 +195,20 @@ extract_symtab(char *filename)
       croak("extract_symtab: argument must be a filename");
     }
 
-    symtuple_array = extract_symtuples(my_option);
-    printf("We pulled %ld symbols\n",symtuple_array->function_count);
+    raw_symbol_struct = extract_symtuples(my_option);
+    printf("We pulled %ld symbols\n",raw_symbol_struct->function_count);
+
+    symtuple_array = raw_symbol_struct->tuples;
 
     rval = newAV();
+
+    for (i = 0; i < raw_symbol_struct->function_count; i++) {
+      hashref = newHV();
+      hvstore(hashref, "function", 8, newSVpv(symtuple_array[i].demangled_name));
+      hvstore(hashref, "start",    5, newSViv(symtuple_array[i].symvalue));
+      hvstore(hashref, "size",     4, newSViv(symtuple_array[i].symsize));
+      av_push(rval, (SV *)hashref);
+    }
 
     RETVAL = rval;
   OUTPUT:
