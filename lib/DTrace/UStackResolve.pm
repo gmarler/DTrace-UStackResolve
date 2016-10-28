@@ -753,7 +753,7 @@ sub _build_symbol_table {
   say "SYMBOL TABLE KEYS:";
   foreach my $symtab_path (keys %symtabs) {
     unless (defined($symbol_table_cache
-                    ->set($symtab_path),
+                    ->set($symtab_path,
                           $symtabs{$symtab_path}, '7 days'))) {
       say "FAILED to store KEY basename($symtab_path) in CACHE!"
     }
