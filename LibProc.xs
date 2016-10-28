@@ -204,9 +204,12 @@ extract_symtab(char *filename)
 
     for (i = 0; i < raw_symbol_struct->function_count; i++) {
       hashref = newHV();
-      hvstore(hashref, "function", 8, newSVpv(symtuple_array[i].demangled_name));
-      hvstore(hashref, "start",    5, newSViv(symtuple_array[i].symvalue));
-      hvstore(hashref, "size",     4, newSViv(symtuple_array[i].symsize));
+      hvstore(hashref, "function", 8,
+              newSVpv(symtuple_array[i].demangled_name), 0);
+      hvstore(hashref, "start",    5,
+              newSViv(symtuple_array[i].symvalue), 0);
+      hvstore(hashref, "size",     4,
+              newSViv(symtuple_array[i].symsize), 0);
       av_push(rval, (SV *)hashref);
     }
 
