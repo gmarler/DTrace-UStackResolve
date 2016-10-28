@@ -181,7 +181,7 @@ has 'execname' => (
   is          => 'ro',
   isa         => 'Str',
   #builder     => '_build_execname',
-  required    => 1,
+  #required    => 1,
 );
 
 # NOTE: The name DTrace puts in the ustack to identify the binary itself; often
