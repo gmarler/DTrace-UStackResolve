@@ -214,6 +214,8 @@ extract_symtab(char *filename)
       temp_href = newRV_noinc( (SV *)hash );
       av_push(rval, temp_href);
     }
+    free(raw_symbol_struct->tuples);
+    free(raw_symbol_struct);
 
     RETVAL = rval;
   OUTPUT:
