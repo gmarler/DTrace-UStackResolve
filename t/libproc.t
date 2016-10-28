@@ -18,7 +18,8 @@ cmp_deeply( $aref,
     { "function" => re('^.+$' ),
       "start"    => re('^\d+$'),
       "size"     => re('^\d+$') }
-  )
+  ),
+  'each href has proper keys with proper values'
 );
 
 #print Dumper( $aref );
