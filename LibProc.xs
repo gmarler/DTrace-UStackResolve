@@ -181,7 +181,8 @@ extract_symtab(char *filename)
   PREINIT:
     char            *my_option;
     AV              *rval;
-    HV              *hashref;
+    HV              *hash;
+    SV              *temp_href;
     callback_data_t *raw_symbol_struct;
     symtuple_t      *symtuple_array;
     long             i;
@@ -203,14 +204,15 @@ extract_symtab(char *filename)
     rval = newAV();
 
     for (i = 0; i < raw_symbol_struct->function_count; i++) {
-      hashref = newHV();
-      hv_store(hashref, "function", 8,
+      hash = newHV();
+      hv_store(hash, "function", 8,
                newSVpv(symtuple_array[i].demangled_name, 0), 0);
-      hv_store(hashref, "start",    5,
+      hv_store(hash, "start",    5,
               newSViv(symtuple_array[i].symvalue), 0);
-      hv_store(hashref, "size",     4,
+      hv_store(hash, "size",     4,
               newSViv(symtuple_array[i].symsize), 0);
-      av_push(rval, (SV *)hashref);
+      temp_href = newRV_noinc( (SV *)hash );
+      av_push(rval, temp_href);
     }
 
     RETVAL = rval;
