@@ -15,7 +15,7 @@ cmp_deeply( $aref, array_each(isa("HASH")), 'each member of aref is an href' );
 
 cmp_deeply( $aref, 
   array_each(
-    { "function" => re('^\S+$'),
+    { "function" => re('^.+$' ),
       "start"    => re('^\d+$'),
       "size"     => re('^\d+$') }
   )
