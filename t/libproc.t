@@ -6,7 +6,7 @@ use Data::Dumper;
 
 BEGIN { use_ok('DTrace::UStackResolve'); }
 
-my $aref = DTrace::UStackResolve::extract_symtab("/bin/ls");
+my $aref = DTrace::UStackResolve::extract_symtab("/usr/bin/sh");
 
 isa_ok( $aref, 'ARRAY', 'extract_symtab returns an aref' );
 
