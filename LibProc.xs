@@ -71,8 +71,13 @@ extract_symtuples(char *filename) {
   }
 
   /* NOTE: Passing pshandle in as cb_data argument for use as first argument of
-   * Psymbol_iter later
+   *       Psymbol_iter later
    * TODO: Fix the case of proc_object_iter to void *, which is a hack */
+
+  /* TODO: Since we're only doing one file at a time, we might be able to
+   *       dispense with Pobject_iter() altogether and go straight to
+   *       Psymbol_iter()
+   */
   Pobject_iter(exec_handle, (void *)proc_object_iter, (void *)cb_data);
 
   Pfree(exec_handle);
@@ -81,7 +86,8 @@ extract_symtuples(char *filename) {
 }
 
 /* Function called from within Pobject_iter() for each object
- * (usually just one) */
+ * (usually just one)
+ */
 int
 proc_object_iter(void *callback_arg, void *pmp, const char *object_name)
 {
@@ -91,25 +97,23 @@ proc_object_iter(void *callback_arg, void *pmp, const char *object_name)
 
   cb_data = (callback_data_t *)callback_arg;
 
-  /* printf("proc_object_iter: %-120s\n", object_name); */
   /* For each object name, grab the file, then iterate over the objects,
    * extracting their symbol tables */
   if ((file_pshandle = Pgrab_file(object_name, &perr)) == NULL) {
-    printf("Unable to grab file: %s\n",Pgrab_error(perr));
+    croak("Unable to grab file: %s\n",Pgrab_error(perr));
   }
   /* NOTE: Passing file_pshandle in for use as callback argument for
-   * Psymbol_iter later */
+   *       Psymbol_iter later */
   cb_data->file_pshandle  = file_pshandle;
   cb_data->function_count = 0;
 
+  /* Only iterate over symbols that are functions */
   Psymbol_iter(file_pshandle,
                object_name,
                PR_SYMTAB,
                BIND_GLOBAL | TYPE_FUNC,
                (void *)function_iter,
                (void *)cb_data);
-
-  /* printf("FUNCTION COUNT: %ld\n", procfile_data.function_count); */
 
   return 0;
 }
@@ -209,7 +213,7 @@ extract_symtab(char *filename)
     }
 
     raw_symbol_struct = extract_symtuples(my_option);
-    printf("We pulled %ld symbols\n",raw_symbol_struct->function_count);
+    warn("We pulled %ld symbols\n",raw_symbol_struct->function_count);
 
     symtuple_array = raw_symbol_struct->tuples;
 
