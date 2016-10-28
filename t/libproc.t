@@ -13,17 +13,13 @@ isa_ok( $aref, 'ARRAY', 'extract_symtab returns an aref' );
 
 cmp_deeply( $aref, array_each(isa("HASH")), 'each member of aref is an href' );
 
-my $common_tests = all(
-  hash_each(
-    {
-      "function" => re('^\S+$'),
-      "start"    => re('^\d+$'),
-      "size"     => re('^\d+$'),
-    }
+cmp_deeply( $aref, 
+  bag(
+    { "function" => re('^\S+$') },
+    { "start"    => re('^\d+$') },
+    { "size"     => re('^\d+$') },
   )
 );
-
-cmp_deeply( $aref, $common_tests );
 
 #print Dumper( $aref );
 
