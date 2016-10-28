@@ -105,13 +105,6 @@ class_has 'PLDD' => (
   default     => "/bin/pldd",
 );
 
-class_has 'PMAP' => (
-  init_arg    => undef,
-  is          => 'ro',
-  isa         => 'Str',
-  default     => "/bin/pmap",
-);
-
 class_has 'NM' => (
   init_arg    => undef,
   is          => 'ro',
@@ -368,17 +361,12 @@ has 'dynamic_library_paths' => (
   predicate   => '_has_dynamic_library_paths',
 );
 
-# TODO: Change to using ldd/pldd as needed
-#
-
 =head2  _build_dynamic_library_paths
 
-This function processes the output of the pmap command on the specified pid
+This function processes the output of the pldd command on the specified pid
 producing the absolute path of each dynamic library the pid has loaded.
 
 This is used as the list of libraries from which to extract symbol tables.
-
-This could also be done, possibly more efficiently, via pldd on the pid.
 
 ldd on a non-running binary is sadly not sufficient for this, as won't go
 through the whole library resolution process, and thus some libraries will be
@@ -389,13 +377,13 @@ omitted, as they're not yet known to be needed; so that's out.
 sub _build_dynamic_library_paths {
   my ($self) = shift;
   my $pid_starttime_href = $self->pid_starttime;
-  my $pmap_func          = $self->pmap_func;
+  my $pldd_func          = $self->pldd_func;
 
   my $file_paths_f = fmap {
     my ($aref) = @_;
     my ($pid, $start_epoch) = @$aref;
     say "Obtaining list of dynamic libs for PID $pid";
-    Future->done( $pmap_func->call( args => [ $pid, $start_epoch ] )->get );
+    Future->done( $pldd_func->call( args => [ $pid, $start_epoch ] )->get );
   } foreach => [ map { [ $_, $pid_starttime_href->{$_} ] } keys %{$pid_starttime_href} ],
     concurrent => 8;
 
@@ -569,7 +557,7 @@ sub BUILD {
   #say "Building D Script Unresolved Output Filename: " .
   #  $self->dscript_unresolved_out;
   $self->_sanity_check_type;
-  $self->pmap_func;
+  $self->pldd_func;
   $self->sha1_func;
   $self->gen_symtab_func;
   $self->loop;
@@ -642,7 +630,7 @@ has sha1_func => (
   lazy    => 1,
 );
 
-has pmap_func => (
+has pldd_func => (
   is      => 'ro',
   isa     => 'IO::Async::Function',
   default => sub {
@@ -670,11 +658,11 @@ sub _build_loop {
   my $loop = IO::Async::Loop->new;
 
   my $sha1_func       = $self->sha1_func;
-  my $pmap_func       = $self->pmap_func;
+  my $pldd_func       = $self->pldd_func;
   my $gen_symtab_func = $self->gen_symtab_func;
 
   $loop->add( $sha1_func );
-  $loop->add( $pmap_func );
+  $loop->add( $pldd_func );
   $loop->add( $gen_symtab_func );
 
   return $loop;
@@ -1151,29 +1139,19 @@ sub _pid_dynamic_library_paths {
 
   # NOTE: It's likely we don't need to bother caching this, as it's really
   #       quick.
-  # TODO: Check whether this has already been stored for this PID instance, using
-  #       KEY: { pid => $pid, start_epoch => $start_epoch }
-  #       Return immediately if available
   my @pids = ( $pid );
-  my $PMAP = __PACKAGE__->PMAP;
+  my $PLDD = __PACKAGE__->PLDD;
   my %libpath_map;
 
   # Dynamic .so library analysis
-  my $so_regex =
+  my $pldd_so_regex =
     qr{
-       ^ (?<base_addr>[0-9a-fA-F]+) \s+         # Hex starting address
-         \S+                        \s+         # size
-         \S+                        \s+         # perms
-         (?<libpath>/[^\n]+?\.so(?:[^\n]+|)) \n # Full path to .so* file
+       ^ (?<libpath>/[^\n]+?\.so(?:[^\n]+|)) \n # Absolute path only
       }smx;
 
-  # This relies on the fact that the first time a lib is listed in pmap output
-  # is the actual offset we're always looking for.
-  # TODO: We need to store the start address of each library for each PID, so
-  #       we'll have the proper lookups of symbols in that library for each PID
   foreach my $pid (@pids) {
-    my $pmap_output = capture( "$PMAP $pid" );
-    while ($pmap_output =~ m{$so_regex}gsmx) {
+    my $pldd_output = capture( "$PLDD $pid" );
+    while ($pldd_output =~ m{$pldd_so_regex}gsmx) {
       $libpath_map{$+{libpath}}++;
     }
   }
@@ -1326,6 +1304,7 @@ sub _exec_symbol_tuples {
   my $load_address = $self->get_exec_load_address($file);
 
   # Extract symbol table
+  my $function_tuples = $self->extract_symtab($file);
 }
 
 # Get a.out load address
@@ -1370,6 +1349,7 @@ sub _dyn_symbol_tuples {
   # addresses of these per PID.  Yahoo!
 
   # Extract symbol table
+  my $function_tuples = $self->extract_symtab($file);
 }
 
 
