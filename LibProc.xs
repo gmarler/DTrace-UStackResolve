@@ -121,6 +121,18 @@ function_iter(void *callback_arg, const GElf_Sym *sym, const char *sym_name)
   callback_data_t *callback_data = (callback_data_t *)callback_arg;
   char             proto_buffer[8192];
 
+  /* If we've used up our allotted space, allocate 1000 more */
+  if (callback_data->function_count >= callback_data->max_symbol_count) {
+    if ( (callback_data->tuples =
+            realloc(callback_data->tuples,
+                    (sizeof(symtuple_t) * callback_data->max_symbol_count) +
+                    (sizeof(symtuple_t) * 1000))) == NULL) {
+      croak("Unable to allocate %ld + 1000 new symbol tuple slots",
+            callback_data->max_symbol_count);
+    }
+    callback_data->max_symbol_count += 1000;
+  }
+
   if (sym_name != NULL) {
     int demangle_result;
     demangle_result = cplus_demangle(sym_name, proto_buffer, (size_t)8192);

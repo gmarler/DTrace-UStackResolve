@@ -6,7 +6,8 @@ use Data::Dumper;
 
 BEGIN { use_ok('DTrace::UStackResolve'); }
 
-my $aref = DTrace::UStackResolve::extract_symtab("/usr/bin/sh");
+#my $aref = DTrace::UStackResolve::extract_symtab("/usr/bin/sh");
+my $aref = DTrace::UStackResolve::extract_symtab("/usr/lib/librmapi.so");
 
 isa_ok( $aref, 'ARRAY', 'extract_symtab returns an aref' );
 
