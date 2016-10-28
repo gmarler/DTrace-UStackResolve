@@ -319,7 +319,9 @@ sub _build_resolved_out_fh {
 
 # TODO: We actually should look at some way to uniquely identify the binary, as
 #       that's the only thing whose changing matters.  Perhaps the inode?
-#       Anything about the start time is irrelevant.
+#       Anything about the start time is irrelevant, other than knowing if it
+#       changed, the on-disk file *might* have changed and should be checked,
+#       and the cache possibly regenerated.
 #       Also worth noting that any of the dynamic objects changing will also
 #       require the cache for that object's file to be udpated
 # The start time(s) of the execname we started this up
@@ -363,8 +365,9 @@ has 'dynamic_library_paths' => (
 
 =head2  _build_dynamic_library_paths
 
-This function processes the output of the pldd command on the specified pid
-producing the absolute path of each dynamic library the pid has loaded.
+This function processes the output of the pldd command on each PID of
+interest, producing the absolute path of each dynamic library the PID has
+loaded.
 
 This is used as the list of libraries from which to extract symbol tables.
 
@@ -389,6 +392,7 @@ sub _build_dynamic_library_paths {
 
   my @file_paths = $file_paths_f->get;
 
+  # Make sure the list of libraries is composed of unique members
   my @absolute_file_paths =
     uniq
     map { @$_ } @file_paths;
@@ -557,12 +561,15 @@ sub BUILD {
   #say "Building D Script Unresolved Output Filename: " .
   #  $self->dscript_unresolved_out;
   $self->_sanity_check_type;
+  # Setup Async functions for later use
   $self->pldd_func;
   $self->sha1_func;
   $self->gen_symtab_func;
   $self->loop;
+  # TODO: Cleanup - Doesn't seem to be a builder here anymore
   $self->pids;
   $self->pid_starttime;
+  # Actually gather dynamic library paths
   $self->dynamic_library_paths;
   say "GENERATING SYMBOL TABLE";
   $self->symbol_table;
@@ -711,18 +718,22 @@ sub _build_loop {
 #
 
 # TODO: Turn this from a normal builder into a Future
+# TODO: Change key from basename to absolute path; store basename as another key
+#       or find another unique identifier
+# TODO: Make sure to do a.out as well as dynamic libs
 sub _build_symbol_table {
   my ($self) = shift;
 
   my ($symbol_table_cache)  = $self->symbol_table_cache;
   my (@absolute_file_paths) = @{$self->dynamic_library_paths};
   my ($gen_symtab_func)     = $self->gen_symtab_func;
+  # a.out
   my ($execpath)            = $self->execname;
 
   # Look for the symbol tables missing from the cache
   my @missing_symtab_cache_items =
-    grep { not defined($symbol_table_cache->get(basename($_))); }
-    $execpath,         # Don't forget to add the executable path itself
+    grep { not defined($symbol_table_cache->get($_)); }
+    $execpath,         # Don't forget to add the a.out path too
     @absolute_file_paths;
 
   # Create the missing cache items
@@ -731,7 +742,7 @@ sub _build_symbol_table {
     say "Creating symbol table for $absolute_path";
     # we cannot pass $self across the boundary as args
     Future->done(
-        $absolute_path => $gen_symtab_func->call( args => [ $self->NM, $absolute_path ] )->get
+        $absolute_path => $gen_symtab_func->call( args => [ $absolute_path ] )->get
     );
   } foreach => [
                  @missing_symtab_cache_items
@@ -742,7 +753,7 @@ sub _build_symbol_table {
   say "SYMBOL TABLE KEYS:";
   foreach my $symtab_path (keys %symtabs) {
     unless (defined($symbol_table_cache
-                    ->set(basename($symtab_path),
+                    ->set($symtab_path),
                           $symtabs{$symtab_path}, '7 days'))) {
       say "FAILED to store KEY basename($symtab_path) in CACHE!"
     }
@@ -1197,65 +1208,27 @@ sub _gen_symbol_table {
   # This means that we can use the symbol table with base address assumed to be
   # implicitly 0 to resolve symbols without further work.
   #
-  my ($NM, $exec_or_lib_path, $exec_or_lib_sha1) = @_;
+  my ($exec_or_lib_path, $exec_or_lib_sha1) = @_;
   # $start_offset is the offset of the _START_ symbol in a library or exec
   my ($symtab_aref,$symcount,$_start_offset);
 
   # TODO: Check whether data is in cache; return immediately if it is
 
   say "Building symtab for $exec_or_lib_path";
-  # TODO: Convert to IO::Async::Process
-  my $out       = capture( "$NM -C -t d $exec_or_lib_path" );
 
-  say "CAPTURED " . length($out) . " BYTES OF OUTPUT FROM nm OF $exec_or_lib_path";
-
-  say "Parsing nm output for: $exec_or_lib_path";
-  while ($out =~ m/^ [^|]+                           \|
-                     (?:\s+)? (?<offset>\d+)         \| # Offset from base
-                     (?:\s+)? (?<size>\d+)           \| # Size
-                     (?<type>(?:FUNC|OBJT)) (?:\s+)? \| # A Function (or _START_ OBJT)
-                     [^|]+                           \|
-                     [^|]+                           \|
-                     [^|]+                           \|
-                     (?<funcname>[^\n]+)    \n
-                  /gsmx) {
-    my ($val);
-    if (not defined($_start_offset)) {
-      if ($+{funcname} eq "_START_") {
-        say "FOUND _START_ OFFSET OF: $+{offset}";
-        $_start_offset = $+{offset};
-        next;
-      }
-    }
-
-    # skip all types that aren't functions, or weren't already handled as
-    # the special _START_ OBJT symbol above
-    next if ($+{type} eq "OBJT");
-
-    $val = [ $+{offset}, $+{size}, $+{funcname} ];
-
-    push @$symtab_aref, $val;
-    if (($symcount++ % 10000) == 0) {
-      say "$exec_or_lib_path: PARSING REACHED $symcount SYMBOL";
-    }
-  }
-  say "$exec_or_lib_path: PARSED TOTAL OF $symcount SYMBOLS";
-  # ASSERT that $_start_offset is defined
-  assert_defined_variable($_start_offset);
-
-  if ($_start_offset == 0) {
-    say "NO NEED TO ADJUST OFFSETS FOR SYMBOLS IN: $exec_or_lib_path";
+  # TODO: Don't call extract_symtab directly - call it through...
+  my $elf_type = __PACKAGE__->_elf_type($exec_or_lib_path);
+  if ($elf_type eq "ET_EXEC") {
+    $symtab_aref = exec_symbol_tuples($exec_or_lib_path);
+  } elsif ($elf_type eq "ET_DYN") {
+    $symtab_aref = dyn_symbol_tuples($exec_or_lib_path);
   } else {
-    say "ADJUSTING OFFSETS FOR SYMBOLS IN: $exec_or_lib_path, BY $_start_offset";
-    foreach my $symval (@$symtab_aref) {
-      # Only want to do this if the result won't be negative
-      if (($symval->[0] - $_start_offset) <= 0) {
-        say "UNABLE TO ADJUST OFFSET " . $symval->[0] . " for " . $symval->[2];
-      } else {
-        $symval->[0] -= $_start_offset;
-      }
-    }
+    say "[$exec_or_lib_path] is ELF Type $elf_type: SKIPPING";
   }
+
+  $symcount = scalar(@$symtab_aref);
+  say "$exec_or_lib_path: PARSED TOTAL OF $symcount SYMBOLS";
+
   # Sort the symbol table by starting address before returning it
   say "SORTING SYMBOL TABLE: $exec_or_lib_path";
   my (@sorted_symtab) = sort {$a->[0] <=> $b->[0] } @$symtab_aref;
@@ -1305,6 +1278,20 @@ sub _exec_symbol_tuples {
 
   # Extract symbol table
   my $function_tuples = $self->extract_symtab($file);
+
+  if ($load_address == 0) {
+    say "NO NEED TO ADJUST OFFSETS FOR SYMBOLS IN: $file";
+  } else {
+    say "ADJUSTING SYMBOLS IN: $file, BY LOAD ADDRESS $load_address";
+    foreach my $tuple (@$function_tuples) {
+      # Only want to do this if the result won't be negative
+      if (($tuple->{start} - $load_address) <= 0) {
+        say "UNABLE TO ADJUST OFFSET " . $tuple->{start} . " for " . $tuple->{function};
+      } else {
+        $tuple->{start} -= $load_address;
+      }
+    }
+  }
 }
 
 # Get a.out load address
@@ -1350,6 +1337,7 @@ sub _dyn_symbol_tuples {
 
   # Extract symbol table
   my $function_tuples = $self->extract_symtab($file);
+  return $function_tuples;
 }
 
 
