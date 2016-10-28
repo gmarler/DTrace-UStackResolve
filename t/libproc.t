@@ -11,7 +11,7 @@ my $aref = DTrace::UStackResolve::extract_symtab("/usr/lib/librmapi.so");
 
 isa_ok( $aref, 'ARRAY', 'extract_symtab returns an aref' );
 
-cmp_deeply( $aref, array_each(isa("Hash")) );
+cmp_deeply( $aref, array_each(isa("HASH")) );
 
 #print Dumper( $aref );
 
