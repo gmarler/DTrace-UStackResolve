@@ -1252,9 +1252,10 @@ sub _elf_type {
   my ($self, $file) = @_;
 
   my ($ELFDUMP) = $self->ELFDUMP;
+  say "Capturing elfdump -e of $file";
   my $out = capture($ELFDUMP, "-e", $file);
 
-  #say $out;
+  say $out;
   $out =~ m/^ \s+ e_type: \s+ (?<elf_type>[^\n]+)/smx;
 
   my $elf_type = $+{elf_type};
