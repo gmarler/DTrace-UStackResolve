@@ -1305,7 +1305,7 @@ sub _get_exec_load_address {
   my ($self, $file) = @_;
 
   my ($ELFDUMP) = $self->ELFDUMP;
-  my $out = capture($ELFDUMP, "-p", $file);
+  my $out = capture("$ELFDUMP -p $file");
 
   if ($out =~ m/ \s+ p_vaddr: \s+ (?<load_address_in_hex>\S+) \s+ [^\n]+\n
                  [^\n]+ p_type: \s+ \[ \s+ PT_LOAD \s+ \]/smx) {
