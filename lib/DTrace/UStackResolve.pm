@@ -1230,6 +1230,7 @@ sub _gen_symbol_table {
     say "[$exec_or_lib_path] is ELF Type $elf_type: SKIPPING";
   }
 
+  say Dumper( $symtab_aref );
   $symcount = scalar(@$symtab_aref);
   say "$exec_or_lib_path: PARSED TOTAL OF $symcount SYMBOLS";
 
@@ -1298,6 +1299,7 @@ sub _exec_symbol_tuples {
       }
     }
   }
+  return $function_tuples
 }
 
 # Get a.out load address
