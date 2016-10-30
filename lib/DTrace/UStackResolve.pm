@@ -1221,9 +1221,11 @@ sub _gen_symbol_table {
   # TODO: Don't call extract_symtab directly - call it through...
   my $elf_type = __PACKAGE__->_elf_type($exec_or_lib_path);
   if ($elf_type eq "ET_EXEC") {
-    $symtab_aref = exec_symbol_tuples($exec_or_lib_path);
+    say "$exec_or_lib_path is an a.out (executable)"
+    $symtab_aref = __PACKAGE__->_exec_symbol_tuples($exec_or_lib_path);
   } elsif ($elf_type eq "ET_DYN") {
-    $symtab_aref = dyn_symbol_tuples($exec_or_lib_path);
+    say "$exec_or_lib_path is a  dynamic library"
+    $symtab_aref = __PACKAGE__->_dyn_symbol_tuples($exec_or_lib_path);
   } else {
     say "[$exec_or_lib_path] is ELF Type $elf_type: SKIPPING";
   }
@@ -1276,7 +1278,7 @@ sub _exec_symbol_tuples {
   # always be good.
 
   # Extract load address from the ELF file
-  my $load_address = $self->get_exec_load_address($file);
+  my $load_address = $self->_get_exec_load_address($file);
 
   # Extract symbol table
   my $function_tuples = $self->extract_symtab($file);
