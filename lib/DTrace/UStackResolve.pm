@@ -1281,7 +1281,9 @@ sub _exec_symbol_tuples {
   my $load_address = $self->_get_exec_load_address($file);
 
   # Extract symbol table
-  my $function_tuples = $self->extract_symtab($file);
+  # TODO: fix extract_symtab so it can accept an object or __PACKAGE__ (class)
+  #       name
+  my $function_tuples = DTrace::UStackResolve::extract_symtab($file);
 
   if ($load_address == 0) {
     say "NO NEED TO ADJUST OFFSETS FOR SYMBOLS IN: $file";
@@ -1340,7 +1342,9 @@ sub _dyn_symbol_tuples {
   # addresses of these per PID.  Yahoo!
 
   # Extract symbol table
-  my $function_tuples = $self->extract_symtab($file);
+  # TODO: fix extract_symtab so it can accept an object or __PACKAGE__ (class)
+  #       name
+  my $function_tuples = DTrace::UStackResolve::extract_symtab($file);
   return $function_tuples;
 }
 
