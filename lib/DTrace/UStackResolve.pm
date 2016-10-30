@@ -1235,7 +1235,7 @@ sub _gen_symbol_table {
 
   # Sort the symbol table by starting address before returning it
   say "SORTING SYMBOL TABLE: $exec_or_lib_path";
-  my (@sorted_symtab) = sort {$a->[0] <=> $b->[0] } @$symtab_aref;
+  my (@sorted_symtab) = sort {$a->{start} <=> $b->{start} } @$symtab_aref;
 
   # TODO: Add to cache with:
   #       KEY: { exec_or_lib_path => $exec_or_lib_path, sha1 => $exec_or_lib_sha1 }
@@ -1316,7 +1316,6 @@ sub _get_exec_load_address {
     say "UNABLE TO FIND FIRST PT_LOAD PROGRAM HEADER";
     return; # undef
   }
-  say $+{load_address_in_hex};
   # TODO: Confirm we don't need Math::BigInt here
   #my $load_address = Math::BigInt->new($+{load_address_in_hex});
   my $hex_load_address = $+{load_address_in_hex};
