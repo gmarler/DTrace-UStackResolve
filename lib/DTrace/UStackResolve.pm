@@ -1252,10 +1252,9 @@ sub _elf_type {
   my ($self, $file) = @_;
 
   my ($ELFDUMP) = $self->ELFDUMP;
-  say "Capturing elfdump -e of $file";
   my $out = capture("$ELFDUMP -e $file");
 
-  say $out;
+  #say $out;
   $out =~ m/^ \s+ e_type: \s+ (?<elf_type>[^\n]+)/smx;
 
   my $elf_type = $+{elf_type};
@@ -1267,7 +1266,7 @@ sub _elf_type {
 
 # Get list of symbol tuples from a given file, properly offset
 sub _exec_symbol_tuples {
-  my ($self, $file) = shift;
+  my ($self, $file) = @_;
 
   # TODO:
   # If the symbol table file map already contains this file, skip it
@@ -1303,7 +1302,7 @@ sub _exec_symbol_tuples {
 
 # Get a.out load address
 sub _get_exec_load_address {
-  my ($self, $file) = shift;
+  my ($self, $file) = @_;
 
   my ($ELFDUMP) = $self->ELFDUMP;
   my $out = capture($ELFDUMP, "-p", $file);
@@ -1331,7 +1330,7 @@ sub _get_exec_load_address {
 
 # Get list of dynamic library symbol tuples
 sub _dyn_symbol_tuples {
-  my ($self, $file) = shift;
+  my ($self, $file) = @_;
 
   # TODO:
   # If the symbol table file map already contains this file, skip it
