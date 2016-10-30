@@ -283,7 +283,7 @@ extract_symtab(char *filename)
     RETVAL
 
 AV *
-extract_symtab_from_pid(pid_t pid)
+extract_symtab_from_pid(int pid)
   PREINIT:
     int              my_option;
     AV              *rval;
