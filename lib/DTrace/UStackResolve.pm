@@ -1318,10 +1318,10 @@ sub _get_exec_load_address {
   say $+{load_address_in_hex};
   # TODO: Confirm we don't need Math::BigInt here
   #my $load_address = Math::BigInt->new($+{load_address_in_hex});
-  my $load_address = $+{load_address_in_hex};
+  my $load_address = hex($+{load_address_in_hex});
 
   say "LOAD ADDRESS:       " . $load_address;
-  my $hex_load_address = sprintf("%#x");
+  my $hex_load_address = sprintf("%#x",$load_address);
   # ->as_hex() specific to Math::BigInt
   # say "LOAD ADDRESS (hex): " . $load_address->as_hex();
   say "LOAD ADDRESS (hex): " . $hex_load_address;
