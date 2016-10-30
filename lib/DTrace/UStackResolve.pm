@@ -1251,7 +1251,9 @@ sub _gen_symbol_table {
 sub _elf_type {
   my ($self, $file) = shift;
 
+  say "In _elf_type";
   my ($ELFDUMP) = $self->ELFDUMP;
+  say "elfdump is found at: $ELFDUMP";
   my $out = capture($ELFDUMP, "-e", $file);
 
   #say $out;
