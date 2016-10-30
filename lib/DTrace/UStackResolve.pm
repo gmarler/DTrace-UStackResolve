@@ -1224,7 +1224,7 @@ sub _gen_symbol_table {
     say "$exec_or_lib_path is an a.out (executable)";
     $symtab_aref = __PACKAGE__->_exec_symbol_tuples($exec_or_lib_path);
   } elsif ($elf_type eq "ET_DYN") {
-    say "$exec_or_lib_path is a  dynamic library";
+    say "$exec_or_lib_path is a dynamic library";
     $symtab_aref = __PACKAGE__->_dyn_symbol_tuples($exec_or_lib_path);
   } else {
     say "[$exec_or_lib_path] is ELF Type $elf_type: SKIPPING";
