@@ -1221,10 +1221,10 @@ sub _gen_symbol_table {
   # TODO: Don't call extract_symtab directly - call it through...
   my $elf_type = __PACKAGE__->_elf_type($exec_or_lib_path);
   if ($elf_type eq "ET_EXEC") {
-    say "$exec_or_lib_path is an a.out (executable)"
+    say "$exec_or_lib_path is an a.out (executable)";
     $symtab_aref = __PACKAGE__->_exec_symbol_tuples($exec_or_lib_path);
   } elsif ($elf_type eq "ET_DYN") {
-    say "$exec_or_lib_path is a  dynamic library"
+    say "$exec_or_lib_path is a  dynamic library";
     $symtab_aref = __PACKAGE__->_dyn_symbol_tuples($exec_or_lib_path);
   } else {
     say "[$exec_or_lib_path] is ELF Type $elf_type: SKIPPING";
