@@ -1055,6 +1055,8 @@ sub _resolve_symbol {
     ###     #say "symtab lookup successful";
 
     # NOTE: This is looking things up by the short basename of the library
+    say "RESOLVER KEYS:";
+    say join("\n", keys %$symtab_trees);
     if ( defined( my $search_tree = $symtab_trees{$keyfile} ) ) {
       my $symtab_entry = $search_tree->lookup( $offset, LULTEQ );
       if (defined($symtab_entry)) {
