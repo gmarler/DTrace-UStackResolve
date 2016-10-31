@@ -14,6 +14,7 @@
 
 /* Pre-XS C Function Declarations */
 typedef struct {
+  /* TODO: Make this a dynamically allocated string */
   char                demangled_name[8192];
   unsigned long long  symvalue;
   unsigned long long  symsize;
