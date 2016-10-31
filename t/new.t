@@ -27,7 +27,7 @@ foreach my $file (@files) {
   }
   if (-d $file) {
   }
-  if (-h $file) {
+  if (-l $file) {
   }
 }
 
