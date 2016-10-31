@@ -1202,8 +1202,7 @@ sub _file_sha1_digest {
 }
 
 sub _gen_symbol_table {
-  # Given a path to a dynamic/shared library or an executable,
-  # generate the symbol table.
+  # Given a path to an executable, generate the symbol table.
   # The #pragma for noresolve ensures each generated symbol will be of the
   # form <entity>:<offset from base of entity>
   #
@@ -1243,6 +1242,8 @@ sub _gen_symbol_table {
   say "RETURNING SORTED SYMBOL TABLE FOR: $exec_or_lib_path";
   return \@sorted_symtab;
 }
+
+
 
 # Grab ELF Type:
 # - ET_EXEC for a.out
@@ -1344,8 +1345,99 @@ sub _dyn_symbol_tuples {
   # Extract symbol table
   # TODO: fix extract_symtab so it can accept an object or __PACKAGE__ (class)
   #       name
-  my $function_tuples = DTrace::UStackResolve::extract_symtab($file);
+  # At present, we can't do this through libproc (extract_symtab), as it can
+  # only operate on executables or entire PIDs.
+  # So for the short term, we're using the old nm method.
+  #my $function_tuples = DTrace::UStackResolve::extract_symtab($file);
+
+  $function_tuples = $self->_gen_dynamic_symbol_table($self->NM, $file);
+
   return $function_tuples;
+}
+
+sub _gen_dynamic_symbol_table {
+  # Given a path to a dynamic/shared library, generate the symbol table.
+  # The #pragma for noresolve ensures each generated symbol will be of the
+  # form <entity>:<offset from base of entity>
+  #
+  # This means that we can use the symbol table with base address assumed to be
+  # implicitly 0 to resolve symbols without further work.
+  #
+  my ($NM, $lib_path, $lib_sha1) = @_;
+  # $start_offset is the offset of the _START_ symbol in a library or exec
+  my ($symtab_aref,$symcount,$_start_offset);
+
+  # TODO: Check whether data is in cache; return immediately if it is
+
+  say "Building symtab for $lib_path";
+  # TODO: Convert to IO::Async::Process
+  my $out       = capture( "$NM -C -t d $lib_path" );
+
+  say "CAPTURED " . length($out) . " BYTES OF OUTPUT FROM nm OF $lib_path";
+
+  say "Parsing nm output for: $lib_path";
+  while ($out =~ m/^ [^|]+                           \|
+                     (?:\s+)? (?<offset>\d+)         \| # Offset from base
+                     (?:\s+)? (?<size>\d+)           \| # Size
+                     (?<type>(?:FUNC|OBJT)) (?:\s+)? \| # A Function (or _START_ OBJT)
+                     [^|]+                           \|
+                     [^|]+                           \|
+                     [^|]+                           \|
+                     (?<funcname>[^\n]+)    \n
+                  /gsmx) {
+    my ($val);
+    # TODO: This is likely not needed for dynamic libraries, as it was intended
+    #       to be used only for a.out's (executables).
+    if (not defined($_start_offset)) {
+      if ($+{funcname} eq "_START_") {
+        say "FOUND _START_ OFFSET OF: $+{offset}";
+        $_start_offset = $+{offset};
+        next;
+      }
+    }
+
+    # skip all types that aren't functions, or weren't already handled as
+    # the special _START_ OBJT symbol above
+    next if ($+{type} eq "OBJT");
+
+    #$val = [ $+{offset}, $+{size}, $+{funcname} ];
+    # TODO: If this use of a hash is too slow, go back to the above use of arefs
+    $val = { start => $+{offset}, size => $+{size}, function => $+{funcname} };
+
+    push @$symtab_aref, $val;
+    if (($symcount++ % 10000) == 0) {
+      say "$lib_path: PARSING REACHED $symcount SYMBOL";
+    }
+  }
+  say "$lib_path: PARSED TOTAL OF $symcount SYMBOLS";
+  # TODO: Probably no longer needed...
+  # ASSERT that $_start_offset is defined
+  assert_defined_variable($_start_offset);
+
+  # TODO: For a dynamic library, this should never be needed
+  if ($_start_offset == 0) {
+    say "NO NEED TO ADJUST OFFSETS FOR SYMBOLS IN: $lib_path";
+  } else {
+    say "ADJUSTING OFFSETS FOR SYMBOLS IN: $lib_path, BY $_start_offset";
+    foreach my $symval (@$symtab_aref) {
+      # Only want to do this if the result won't be negative
+      if (($symval->[0] - $_start_offset) <= 0) {
+        say "UNABLE TO ADJUST OFFSET " . $symval->[0] . " for " . $symval->[2];
+      } else {
+        $symval->[0] -= $_start_offset;
+      }
+    }
+  }
+  # Sort the symbol table by starting address before returning it
+  say "SORTING SYMBOL TABLE: $lib_path";
+  #my (@sorted_symtab) = sort {$a->[0] <=> $b->[0] } @$symtab_aref;
+  my (@sorted_symtab) = sort {$a->{start} <=> $b->{start} } @$symtab_aref;
+
+  # TODO: Add to cache with:
+  #       KEY: { lib_path => $lib_path, sha1 => $lib_sha1 }
+
+  say "RETURNING SORTED SYMBOL TABLE FOR: $lib_path";
+  return \@sorted_symtab;
 }
 
 
