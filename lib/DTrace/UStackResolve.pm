@@ -131,6 +131,7 @@ has 'loop' => (
   is          => 'ro',
   isa         => 'IO::Async::Loop',
   builder     => '_build_loop',
+  predicate   => '_has_loop',
   lazy        => 1,
 );
 
@@ -661,7 +662,12 @@ has gen_symtab_func => (
 sub _build_loop {
   my ($self) = shift;
 
-  my $loop = IO::Async::Loop->new;
+  my $loop;
+  if ($self->_has_loop) {
+    $loop = $self->loop;
+  } else {
+    $loop = IO::Async::Loop->new;
+  }
 
   my $sha1_func       = $self->sha1_func;
   my $pldd_func       = $self->pldd_func;
