@@ -64,12 +64,16 @@ extract_symtuples(char *filename) {
           "DTrace::UStackResolve::LibProc::extract_symtuples",
           "first 1000 tuples");
   }
-  cb_data->max_symbol_count = 1000;
 
-  /* Use PGRAB_RDONLY to avoid perturbing the target PID */
+  cb_data->max_symbol_count = 1000;
+  cb_data->function_count = 0;
+
   if ((exec_handle = Pgrab_file(filename, &perr)) == NULL) {
     croak("Unable to grab file: %s\n",Pgrab_error(perr));
   }
+
+  /* Store the file_pshandle for later use in the callbacks */
+  cb_data->file_pshandle = exec_handle;
 
   /* NOTE: Passing pshandle in as cb_data argument for use as first argument of
    *       Psymbol_iter later
@@ -86,8 +90,9 @@ extract_symtuples(char *filename) {
   return(cb_data);
 }
 
-/* Function used to grab ps_prochandle, invoke Pobject_Iter(), free up
- * resources, then return array of structs to XS routine */
+/* Function used to grab ps_prochandle for a PID and all of it's dependencies,
+ * invoke Pobject_iter(), free up resources, then return array of structs to
+ * XS routine */
 callback_data_t *
 extract_symtuples_from_PID(int pid) {
   int                   perr;
@@ -107,7 +112,9 @@ extract_symtuples_from_PID(int pid) {
           "DTrace::UStackResolve::LibProc::extract_symtuples",
           "first 1000 tuples");
   }
+
   cb_data->max_symbol_count = 1000;
+  cb_data->function_count = 0;
 
   /* Use PGRAB_RDONLY to avoid perturbing the target PID */
   if ((exec_handle = Pgrab(pid, PGRAB_RDONLY, &perr)) == NULL) {
@@ -140,17 +147,8 @@ proc_object_iter(void *callback_arg, void *pmp, const char *object_name)
   struct ps_prochandle *file_pshandle;
   int                   perr;
 
-  cb_data = (callback_data_t *)callback_arg;
-
-  /* For each object name, grab the file, then iterate over the objects,
-   * extracting their symbol tables */
-  if ((file_pshandle = Pgrab_file(object_name, &perr)) == NULL) {
-    croak("Unable to grab file: %s\n",Pgrab_error(perr));
-  }
-  /* NOTE: Passing file_pshandle in for use as callback argument for
-   *       Psymbol_iter later */
-  cb_data->file_pshandle  = file_pshandle;
-  cb_data->function_count = 0;
+  cb_data       = (callback_data_t *)callback_arg;
+  file_pshandle = cb_data.file_pshandle;
 
   /* Only iterate over symbols that are functions */
   Psymbol_iter(file_pshandle,
