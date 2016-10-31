@@ -28,9 +28,9 @@ for (my $i = 0; $i <= 1000; $i++) {
       next if ($file =~ /^\.$/);
       next if ($file =~ /^\.\.$/);
     
-      stat($file);
+      stat("$dir/$file");
       if (-f $file) {
-        my $fh = IO::File->new($file,"<");
+        my $fh = IO::File->new("$dir/$file","<");
         my $c = do { local $/; <$fh>; };
         say "File length: " . length($c);
         my ($digest) = Digest::SHA1::sha1_hex($c);
