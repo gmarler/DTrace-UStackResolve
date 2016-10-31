@@ -180,7 +180,11 @@ int
 function_iter(void *callback_arg, const GElf_Sym *sym, const char *sym_name)
 {
   callback_data_t *callback_data = (callback_data_t *)callback_arg;
-  char             proto_buffer[8192];
+  char            *proto_buffer;
+
+  if ((proto_buffer = malloc(8192)) == NULL) {
+    croak("Unable to allocate an 8K demangle prototype buffer");
+  }
 
   /* If we've used up our allotted space, allocate 1000 more */
   if (callback_data->function_count >= callback_data->max_symbol_count) {
@@ -196,7 +200,10 @@ function_iter(void *callback_arg, const GElf_Sym *sym, const char *sym_name)
 
   if (sym_name != NULL) {
     int demangle_result;
-    demangle_result = cplus_demangle(sym_name, proto_buffer, (size_t)8192);
+    size_t proto_buffer_size = (size_t)8192;
+    retry:
+    demangle_result = cplus_demangle(sym_name, proto_buffer,
+                                     proto_buffer_size);
     switch (demangle_result) {
       case 0:
         /* Only record if the function symbol is "real" */
@@ -222,8 +229,11 @@ function_iter(void *callback_arg, const GElf_Sym *sym, const char *sym_name)
         /* printf("SKIPPING INVALID MANGLED NAME %s\n",sym_name); */
         break;
       case DEMANGLE_ESPACE:
-        croak("Demangle BUFFER TOO SMALL\n");
-        break;
+        proto_buffer_size *= 2;
+        if ((proto_buffer = realloc(proto_buffer, proto_buffer_size)) == NULL) {
+          croak("Unable to expand demangle prototype buffer to %lld\n",proto_buffer_size);
+        }
+        goto retry;
       default:
         croak("cplus_demangle() failed with unknown error %d\n",
               demangle_result);
