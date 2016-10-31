@@ -256,7 +256,7 @@ extract_symtab(char *filename)
     }
 
     raw_symbol_struct = extract_symtuples(my_option);
-    warn("We pulled %ld symbols\n",raw_symbol_struct->function_count);
+    /* warn("We pulled %ld symbols\n",raw_symbol_struct->function_count); */
 
     symtuple_array = raw_symbol_struct->tuples;
 
