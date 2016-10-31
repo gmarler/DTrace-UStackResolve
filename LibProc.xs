@@ -229,7 +229,7 @@ function_iter(void *callback_arg, const GElf_Sym *sym, const char *sym_name)
         /* printf("SKIPPING INVALID MANGLED NAME %s\n",sym_name); */
         break;
       case DEMANGLE_ESPACE:
-        proto_buffer_size *= 2;
+        proto_buffer_size += 8192;
         if ((proto_buffer = realloc(proto_buffer, proto_buffer_size)) == NULL) {
           croak("Unable to expand demangle prototype buffer to %lld\n",proto_buffer_size);
         }
