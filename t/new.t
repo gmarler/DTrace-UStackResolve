@@ -15,7 +15,7 @@ my $obj = DTrace::UStackResolve->new( { pids => [ $pid ] } );
 isa_ok($obj, 'DTrace::UStackResolve', 'object is the right type');
 
 for (my $i = 0; $i <= 1000; $i++) {
-  opendir(DH, "/etc");
+  opendir(DH, "/usr/bin");
   my @files = readdir(DH);
   closedir(DH);
   
