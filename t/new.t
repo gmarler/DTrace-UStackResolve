@@ -27,7 +27,7 @@ for (my $i = 0; $i <= 1000; $i++) {
     if (-f $file) {
       my $fh = IO::File->new($file,"<");
       my $c = do { local $/; <$fh>; };
-      my ($digest) = Digest::SHA1::sha1_hex($data);
+      my ($digest) = Digest::SHA1::sha1_hex($c);
     }
   }
 }
