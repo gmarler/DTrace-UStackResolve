@@ -3,6 +3,8 @@ use warnings;
 
 use Test::Most;
 use Data::Dumper;
+use Digest::SHA1;
+use IO::File;
 
 use_ok('DTrace::UStackResolve');
 
@@ -23,12 +25,9 @@ for (my $i = 0; $i <= 1000; $i++) {
   
     stat($file);
     if (-f $file) {
-    }
-    if (-x $file) {
-    }
-    if (-d $file) {
-    }
-    if (-l $file) {
+      my $fh = IO::File->new($file,"<");
+      my $c = do { local $/; <$fh>; };
+      my ($digest) = Digest::SHA1::sha1_hex($data);
     }
   }
 }
