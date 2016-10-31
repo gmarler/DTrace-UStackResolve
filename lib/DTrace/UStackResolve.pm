@@ -512,7 +512,12 @@ sub _build_direct_lookup_cache {
       $tree->put( $entry->{start}, $entry );
     }
 
+    # This key is the absolute path to the item
     $symtab_trees{$key} = $tree;
+    my ($basename_key) = basename($key);
+    # And this is the "short" key, which will match what DTrace's unresolved
+    # address is usually prefixed with
+    $symtab_trees{$basename_key} = $tree;
   }
 
   return \%symtab_trees;
@@ -1045,6 +1050,8 @@ sub _resolve_symbol {
     ###       $line .= " [SYMBOL TABLE LOOKUP FAILED]";
     ###     }
     ###     #say "symtab lookup successful";
+
+    # NOTE: This is looking things up by the short basename of the library
     if ( defined( my $search_tree = $symtab_trees{$keyfile} ) ) {
       my $symtab_entry = $search_tree->lookup( $offset, LULTEQ );
       if (defined($symtab_entry)) {
