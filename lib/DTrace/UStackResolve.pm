@@ -662,12 +662,7 @@ has gen_symtab_func => (
 sub _build_loop {
   my ($self) = shift;
 
-  my $loop;
-  if ($self->_has_loop) {
-    $loop = $self->loop;
-  } else {
-    $loop = IO::Async::Loop->new;
-  }
+  my $loop = IO::Async::Loop->new;
 
   my $sha1_func       = $self->sha1_func;
   my $pldd_func       = $self->pldd_func;
