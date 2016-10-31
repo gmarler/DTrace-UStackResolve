@@ -747,7 +747,7 @@ sub _build_symbol_table {
   # Create the missing cache items
   my $symtabs_f = fmap {
     my ($absolute_path) = shift;
-    say "Creating symbol table for $absolute_path";
+    #say "Creating symbol table for $absolute_path";
     # we cannot pass $self across the boundary as args
     Future->done(
         $absolute_path => $gen_symtab_func->call( args => [ $absolute_path ] )->get
@@ -758,7 +758,7 @@ sub _build_symbol_table {
 
   my %symtabs = $symtabs_f->get;
 
-  say "SYMBOL TABLE KEYS:";
+  #say "SYMBOL TABLE KEYS:";
   foreach my $symtab_path (keys %symtabs) {
     unless (defined($symbol_table_cache
                     ->set($symtab_path,
@@ -767,8 +767,8 @@ sub _build_symbol_table {
     }
   }
 
-  say "SYMBOL TABLE KEYS IN CACHE:";
-  say join("\n", $symbol_table_cache->get_keys);
+  #say "SYMBOL TABLE KEYS IN CACHE:";
+  #say join("\n", $symbol_table_cache->get_keys);
 
   return \%symtabs;
 }
@@ -1192,15 +1192,15 @@ sub _gen_symbol_table {
 
   # TODO: Check whether data is in cache; return immediately if it is
 
-  say "Building symtab for $exec_or_lib_path";
+  #say "Building symtab for $exec_or_lib_path";
 
   # TODO: Don't call extract_symtab directly - call it through...
   my $elf_type = __PACKAGE__->_elf_type($exec_or_lib_path);
   if ($elf_type eq "ET_EXEC") {
-    say "$exec_or_lib_path is an a.out (executable)";
+    #say "$exec_or_lib_path is an a.out (executable)";
     $symtab_aref = __PACKAGE__->_exec_symbol_tuples($exec_or_lib_path);
   } elsif ($elf_type eq "ET_DYN") {
-    say "$exec_or_lib_path is a dynamic library";
+    #say "$exec_or_lib_path is a dynamic library";
     $symtab_aref = __PACKAGE__->_dyn_symbol_tuples($exec_or_lib_path);
   } else {
     say "[$exec_or_lib_path] is ELF Type $elf_type: SKIPPING";
@@ -1216,7 +1216,7 @@ sub _gen_symbol_table {
   # TODO: Add to cache with:
   #       KEY: { exec_or_lib_path => $exec_or_lib_path, sha1 => $exec_or_lib_sha1 }
 
-  say "RETURNING SORTED SYMBOL TABLE FOR: $exec_or_lib_path";
+  #say "RETURNING SORTED SYMBOL TABLE FOR: $exec_or_lib_path";
   return \@sorted_symtab;
 }
 
@@ -1237,7 +1237,7 @@ sub _elf_type {
 
   my $elf_type = $+{elf_type};
 
-  say "[$file] ELF Type: $elf_type";
+  #say "[$file] ELF Type: $elf_type";
 
   return $elf_type;
 }
