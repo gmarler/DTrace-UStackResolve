@@ -1020,43 +1020,8 @@ sub _resolve_symbol {
       return $result if defined($result);
     }
     my ($keyfile, $offset) = ($+{keyfile}, hex( $+{offset} ) );
-    #
-    # TODO: Use the PID to lookup the correct symbol table entries
-    #       in the symbol_table cache namespace
-    # NOTE: This may no longer be necessary, actually, except for
-    #       the executable itself.
-    #
-    ###   if (defined( $symtab = $symbol_table_cache->get($keyfile) )) {
-    ###     my $dec_offset = Math::BigInt->from_hex($offset);
-    ###     my $index = _binarySearch($dec_offset,$symtab);
-    ###     # NOTE: Use defined($index) because the $index can validly be '0'
-    ###     if (defined($index)) {
-    ###       my ($symtab_entry) = $symtab->[$index];
-    ###       # If we actually found the proper symbol table entry, make a pretty output
-    ###       # in the stack for it
-    ###       if ($symtab_entry) {
-    ###         my $funcname = $symtab_entry->[2];
-    ###         # my $funcsize = $symtab_entry->[1];
-    ###         # say "FUNCNAME: $funcname";
-    ###         my $resolved =
-    ###           sprintf("%s+0x%x",
-    ###                   $funcname,
-    ###                   $dec_offset - Math::BigInt->new($symtab_entry->[0]));
-    ###         # If we got here, we have something to store in the direct symbol
-    ###         # lookup cache
-    ###         $direct_symbol_cache->set($line,$resolved,'7 days');
-    ###         $line =~ s/^(?<keyfile>[^:]+):0x(?<offset>[\da-fA-F]+)$/${resolved}/;
-    ###       } else {
-    ###         die "WHAT THE HECK HAPPENED???";
-    ###       }
-    ###     } else {
-    ###       $line .= " [SYMBOL TABLE LOOKUP FAILED]";
-    ###     }
-    ###     #say "symtab lookup successful";
-
+    
     # NOTE: This is looking things up by the short basename of the library
-    say "RESOLVER KEYS:";
-    say join("\n", keys %symtab_trees);
     if ( defined( my $search_tree = $symtab_trees{$keyfile} ) ) {
       my $symtab_entry = $search_tree->lookup( $offset, LULTEQ );
       if (defined($symtab_entry)) {
