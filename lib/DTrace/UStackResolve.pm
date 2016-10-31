@@ -867,7 +867,9 @@ sub _build_dtrace_script_fh {
 
   my ($script_contents) = $self->dtrace_script_contents;
   my ($tfh)             = File::Temp->new('DTrace-Script-XXXX',
-                                          DIR => '/tmp' );
+                                          DIR => '/tmp',
+                                          CLEANUP => 0,
+                                         );
 
   $tfh->print($script_contents);
   $tfh->flush;
