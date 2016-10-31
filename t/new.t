@@ -27,7 +27,7 @@ my ($pid) =
                           /usr/lib/sparcv9)) {
         my $elapsed = tv_interval($t0);
         if ($elapsed > 5) {
-          last;
+          exit(0);
         }
         opendir(DH, $dir);
         my @files = readdir(DH);
