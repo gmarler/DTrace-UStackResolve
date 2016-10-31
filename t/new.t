@@ -23,12 +23,9 @@ my ($pid) =
   $loop->spawn_child(
     code => sub {
       my $t0 = [gettimeofday];
+      OUTER:
       foreach my $dir (qw(/usr/bin /usr/bin/sparcv9 /usr/sbin /usr/lib
                           /usr/lib/sparcv9)) {
-        my $elapsed = tv_interval($t0);
-        if ($elapsed > 5) {
-          exit(0);
-        }
         opendir(DH, $dir);
         my @files = readdir(DH);
         closedir(DH);
@@ -39,6 +36,11 @@ my ($pid) =
         
           stat("$dir/$file");
           if (-f "$dir/$file") {
+            my $elapsed = tv_interval($t0);
+            if ($elapsed > 6) {
+              last OUTER;
+            }
+
             my $fh = IO::File->new("$dir/$file","<") or next;
             my $c = do { local $/; <$fh>; };
             my ($digest) = Digest::SHA1::sha1_hex($c);
@@ -50,13 +52,14 @@ my ($pid) =
           }
         }
       }
-      return 1;
+      return 0;
     },
     on_exit => sub {
       my ($pid, $exitcode, $dollarbang, $dollarat) = @_;
       my $status = ($exitcode >> 8);
       print "Child process exited with status $status\n";
-      print " OS Error was $dollarbang, exception was $dollarat\n";
+      #print " OS Error was $dollarbang, exception was $dollarat\n";
+      $loop->stop();
     },
   );
 
@@ -64,9 +67,8 @@ my $obj = DTrace::UStackResolve->new( { pids => [ $pid ] } );
 
 isa_ok($obj, 'DTrace::UStackResolve', 'object is the right type');
 
-# Pull out the loop we're already using...
-# my $dtus_loop = $obj->loop;
-
+# It's ok to use the $loop we defined here, as it'll be the same as the one we'd
+# pull out of the $obj anyway
 $loop->run();
 
 done_testing();
