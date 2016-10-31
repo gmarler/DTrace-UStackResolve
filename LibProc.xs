@@ -154,7 +154,7 @@ proc_object_iter(void *callback_arg, void *pmp, const char *object_name)
   Psymbol_iter(file_pshandle,
                object_name,
                PR_SYMTAB,
-               BIND_GLOBAL | TYPE_FUNC,
+               BIND_GLOBAL | BIND_LOCAL | TYPE_FUNC,
                (void *)function_iter,
                (void *)cb_data);
 
