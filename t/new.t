@@ -51,18 +51,11 @@ my ($pid) =
     },
   );
 
-my $obj = DTrace::UStackResolve->new( { pids => [ $pid ] } );
+my $obj = DTrace::UStackResolve->new( { loop => $loop, pids => [ $pid ] } );
 
 isa_ok($obj, 'DTrace::UStackResolve', 'object is the right type');
 
-my $loop = $dtus->loop;
-
 $loop->run();
-
-
-sleep(20);
-
-kill($pid);
 
 done_testing();
 
