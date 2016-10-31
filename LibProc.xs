@@ -285,6 +285,7 @@ extract_symtab(char *filename)
 
     symtuple_array = raw_symbol_struct->tuples;
 
+    warn("Extracted symbols from libproc\n");
     rval = newAV();
 
     for (i = 0; i < raw_symbol_struct->function_count; i++) {
