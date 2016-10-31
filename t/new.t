@@ -29,7 +29,7 @@ for (my $i = 0; $i <= 1000; $i++) {
       next if ($file =~ /^\.\.$/);
     
       stat("$dir/$file");
-      if (-f $file) {
+      if (-f "$dir/$file") {
         my $fh = IO::File->new("$dir/$file","<");
         my $c = do { local $/; <$fh>; };
         say "File length: " . length($c);
