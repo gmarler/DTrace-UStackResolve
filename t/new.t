@@ -9,6 +9,7 @@ use Digest::SHA1;
 use Digest::MD5;
 use Crypt::CBC;
 use IO::File;
+use Time::HiRes qw(gettimeofday tv_interval);
 
 use_ok('DTrace::UStackResolve');
 
@@ -21,8 +22,11 @@ my $loop = IO::Async::Loop->new;
 my ($pid) =
   $loop->spawn_child(
     code => sub {
+      my $t0 = [gettimeofday];
       foreach my $dir (qw(/usr/bin /usr/bin/sparcv9 /usr/sbin /usr/lib
                           /usr/lib/sparcv9)) {
+        my $elapsed = tv_interval($t0);
+        say "ELAPSED: $elapsed";
         opendir(DH, $dir);
         my @files = readdir(DH);
         closedir(DH);
