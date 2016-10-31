@@ -4,6 +4,8 @@ use warnings;
 use Test::Most;
 use Data::Dumper;
 use Digest::SHA1;
+use Digest::MD5;
+use Crypt::CBC;
 use IO::File;
 
 use_ok('DTrace::UStackResolve');
@@ -29,7 +31,13 @@ for (my $i = 0; $i <= 1000; $i++) {
       if (-f $file) {
         my $fh = IO::File->new($file,"<");
         my $c = do { local $/; <$fh>; };
+        say "File length: " . length($c);
         my ($digest) = Digest::SHA1::sha1_hex($c);
+        $digest = Digest::MD5::md5_hex($c);
+        my ($cipher) = Crypt::CBC->new( -key => 'super secret key',
+                                        -cipher => 'Blowfish',
+                                      );
+        my ($ciphertext) = $cipher($c);
       }
     }
   }
