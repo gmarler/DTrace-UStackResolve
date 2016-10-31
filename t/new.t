@@ -55,7 +55,7 @@ my $obj = DTrace::UStackResolve->new( { pids => [ $pid ] } );
 
 isa_ok($obj, 'DTrace::UStackResolve', 'object is the right type');
 
-my $dtus_loop = $dtus->loop;
+my $dtus_loop = $obj->loop;
 
 say "first loop:       $loop";
 say "DTUS object loop: $dtus_loop";
