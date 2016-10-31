@@ -517,9 +517,12 @@ sub _build_direct_lookup_cache {
     my ($basename_key) = basename($key);
     # And this is the "short" key, which will match what DTrace's unresolved
     # address is usually prefixed with
+    say "Adding key $basename_key";
     $symtab_trees{$basename_key} = $tree;
   }
 
+  say "DIRECT LOOKUP CACHE (RedBlack Trees) KEYS:";
+  say join("\n", keys %symtab_trees);
   return \%symtab_trees;
 }
 
