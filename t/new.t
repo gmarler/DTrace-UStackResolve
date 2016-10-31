@@ -12,5 +12,7 @@ my $obj = DTrace::UStackResolve->new( { pids => [ $pid ] } );
 
 isa_ok($obj, 'DTrace::UStackResolve', 'object is the right type');
 
+sleep(20);
+
 done_testing();
 
