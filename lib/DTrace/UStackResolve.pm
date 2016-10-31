@@ -1350,7 +1350,7 @@ sub _dyn_symbol_tuples {
   # So for the short term, we're using the old nm method.
   #my $function_tuples = DTrace::UStackResolve::extract_symtab($file);
 
-  $function_tuples = $self->_gen_dynamic_symbol_table($self->NM, $file);
+  my $function_tuples = $self->_gen_dynamic_symbol_table($self->NM, $file);
 
   return $function_tuples;
 }
