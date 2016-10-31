@@ -26,7 +26,9 @@ my ($pid) =
       foreach my $dir (qw(/usr/bin /usr/bin/sparcv9 /usr/sbin /usr/lib
                           /usr/lib/sparcv9)) {
         my $elapsed = tv_interval($t0);
-        say "ELAPSED: $elapsed";
+        if ($elapsed > 5) {
+          last;
+        }
         opendir(DH, $dir);
         my @files = readdir(DH);
         closedir(DH);
