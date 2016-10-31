@@ -1041,12 +1041,12 @@ sub _resolve_symbol {
     if ( defined( my $search_tree = $symtab_trees{$keyfile} ) ) {
       my $symtab_entry = $search_tree->lookup( $offset, LULTEQ );
       if (defined($symtab_entry)) {
-        if (($offset >= $symtab_entry->[0] ) and
-            ($offset <= ($symtab_entry->[0] + $symtab_entry->[1]) ) ) {
+        if (($offset >= $symtab_entry->{start} ) and
+            ($offset <= ($symtab_entry->{start} + $symtab_entry->{size}) ) ) {
           my $resolved =
             sprintf("%s+0x%x",
-                    $symtab_entry->[2],
-                    $offset - $symtab_entry->[0]);
+                    $symtab_entry->{function},
+                    $offset - $symtab_entry->{start});
           # If we got here, we have something to store in the direct symbol
           # lookup cache
           $direct_symbol_cache->set($line,$resolved,'7 days');
