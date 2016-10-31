@@ -105,13 +105,6 @@ class_has 'PLDD' => (
   default     => "/bin/pldd",
 );
 
-class_has 'NM' => (
-  init_arg    => undef,
-  is          => 'ro',
-  isa         => 'Str',
-  default     => "/usr/ccs/bin/nm",
-);
-
 class_has 'PGREP' => (
   init_arg    => undef,
   is          => 'ro',
