@@ -148,7 +148,7 @@ proc_object_iter(void *callback_arg, void *pmp, const char *object_name)
   int                   perr;
 
   cb_data       = (callback_data_t *)callback_arg;
-  file_pshandle = cb_data.file_pshandle;
+  file_pshandle = cb_data->file_pshandle;
 
   /* Only iterate over symbols that are functions */
   Psymbol_iter(file_pshandle,
