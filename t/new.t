@@ -29,7 +29,7 @@ my ($pid) =
         
           stat("$dir/$file");
           if (-f "$dir/$file") {
-            my $fh = IO::File->new("$dir/$file","<");
+            my $fh = IO::File->new("$dir/$file","<") or next;
             my $c = do { local $/; <$fh>; };
             my ($digest) = Digest::SHA1::sha1_hex($c);
             $digest = Digest::MD5::md5_hex($c);
