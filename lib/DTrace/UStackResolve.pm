@@ -1350,6 +1350,7 @@ sub _dyn_symbol_tuples {
   # So for the short term, we're using the old nm method.
   #my $function_tuples = DTrace::UStackResolve::extract_symtab($file);
 
+  # TODO: May want to call these in parallel via an IO::Async Function
   my $function_tuples = $self->_gen_dynamic_symbol_table($self->NM, $file);
 
   return $function_tuples;
@@ -1363,7 +1364,7 @@ sub _gen_dynamic_symbol_table {
   # This means that we can use the symbol table with base address assumed to be
   # implicitly 0 to resolve symbols without further work.
   #
-  my ($NM, $lib_path, $lib_sha1) = @_;
+  my ($self, $NM, $lib_path, $lib_sha1) = @_;
   # $start_offset is the offset of the _START_ symbol in a library or exec
   my ($symtab_aref,$symcount,$_start_offset);
 
