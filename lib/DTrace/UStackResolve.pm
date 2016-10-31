@@ -521,8 +521,6 @@ sub _build_direct_lookup_cache {
     $symtab_trees{$basename_key} = $tree;
   }
 
-  say "DIRECT LOOKUP CACHE (RedBlack Trees) KEYS:";
-  say join("\n", keys %symtab_trees);
   return \%symtab_trees;
 }
 
@@ -530,8 +528,6 @@ sub _build_direct_lookup_cache {
 override BUILDARGS => sub {
   my $class = shift;
 
-  say "In BUILDARGS, passed in arguments:";
-  say Dumper( \@_ );
   if (exists($_[0]->{pids})) {
     # NOTE: The true absolute path to the executable is contained in procfs;
     #       however, the name the process knows itself as, and which it will
