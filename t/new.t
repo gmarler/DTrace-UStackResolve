@@ -29,11 +29,11 @@ my ($pid) =
         opendir(DH, $dir);
         my @files = readdir(DH);
         closedir(DH);
-        
+
         foreach my $file (@files) {
           next if ($file =~ /^\.$/);
           next if ($file =~ /^\.\.$/);
-        
+
           stat("$dir/$file");
           if (-f "$dir/$file") {
             my $elapsed = tv_interval($t0);

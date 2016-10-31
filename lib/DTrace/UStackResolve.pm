@@ -1016,7 +1016,7 @@ sub _resolve_symbol {
       return $result if defined($result);
     }
     my ($keyfile, $offset) = ($+{keyfile}, hex( $+{offset} ) );
-    
+
     # NOTE: This is looking things up by the short basename of the library
     if ( defined( my $search_tree = $symtab_trees{$keyfile} ) ) {
       my $symtab_entry = $search_tree->lookup( $offset, LULTEQ );
@@ -1032,11 +1032,12 @@ sub _resolve_symbol {
           $direct_symbol_cache->set($line,$resolved,'7 days');
           $line =~ s/^(?<keyfile>[^:]+):0x(?<offset>[\da-fA-F]+)$/${resolved}/;
         } else {
-          $line .= " [SYMBOL TABLE LOOKUP FAILED]";
+          $line .= " [SYMBOL TABLE LOOKUP FAILED - POTENTIAL MATCH FAILED]";
         }
       } else {
-        say "FAILED TO LOOKUP ENTRY FOR: $keyfile";
-        confess "WHAT THE HECK HAPPENED???";
+        $line .= " [SYMBOL TABLE LOOKUP FAILED - NOT EVEN A POTENTIAL MATCH]";
+        #say "FAILED TO LOOKUP ENTRY FOR: $keyfile";
+        #confess "WHAT THE HECK HAPPENED???";
       }
     } else {
       $line .= " [NO SYMBOL TABLE FOR $keyfile]";
