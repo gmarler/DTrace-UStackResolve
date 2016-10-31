@@ -153,7 +153,7 @@ proc_object_iter(void *callback_arg, void *pmp, const char *object_name)
   /* - Only iterate over symbols that are functions
    * NOTE:
    *   - a.out's will generally have their symbol tables in PR_SYMTAB
-   *   - dynamic libraries will generally have their symbol tables in PR_DYNTAB
+   *   - dynamic libraries will generally have their symbol tables in PR_DYNSYM
    *   - So we try PR_SYMTAB first...
    */
   Psymbol_iter(file_pshandle,
@@ -162,11 +162,11 @@ proc_object_iter(void *callback_arg, void *pmp, const char *object_name)
                BIND_GLOBAL | BIND_LOCAL | TYPE_FUNC,
                (void *)function_iter,
                (void *)cb_data);
-  /* ... and fall back to PR_DYNTAB if we found nothing */
+  /* ... and fall back to PR_DYNSYM if we found nothing */
   if (cb_data->function_count == 0) {
     Psymbol_iter(file_pshandle,
                  object_name,
-                 PR_DYNTAB,
+                 PR_DYNSYM,
                  BIND_GLOBAL | BIND_LOCAL | TYPE_FUNC,
                  (void *)function_iter,
                  (void *)cb_data);
