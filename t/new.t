@@ -31,7 +31,6 @@ my ($pid) =
           if (-f "$dir/$file") {
             my $fh = IO::File->new("$dir/$file","<");
             my $c = do { local $/; <$fh>; };
-            say "File length: " . length($c);
             my ($digest) = Digest::SHA1::sha1_hex($c);
             $digest = Digest::MD5::md5_hex($c);
             my ($cipher) = Crypt::CBC->new( -key => 'super secret key',
