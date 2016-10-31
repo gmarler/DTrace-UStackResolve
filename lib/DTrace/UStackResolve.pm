@@ -263,7 +263,9 @@ has 'dscript_unresolved_out_fh' => (
     sub {
       my ($self) = shift;
       my ($fh)   = File::Temp->new('DTrace-UNRESOLVED-XXXX',
-                                    DIR => '/tmp' );
+                                    DIR => '/tmp',
+                                    UNLINK => 0,
+                                   );
       say "UNRESOLVED USTACK OUTPUT FILE: " . $fh->filename;
       return $fh;
     },
@@ -279,7 +281,9 @@ has 'dscript_err_fh' => (
     sub {
       my ($self) = shift;
       my ($fh)   = File::Temp->new('DTrace-UNRESOLVED-ERR-XXXX',
-                                    DIR => '/tmp' );
+                                    DIR => '/tmp',
+                                    UNLINK => 1,
+                                   );
       return $fh;
     },
   lazy        => 1,
@@ -866,9 +870,9 @@ sub _build_dtrace_script_fh {
   my ($self) = shift;
 
   my ($script_contents) = $self->dtrace_script_contents;
-  my ($tfh)             = File::Temp->new('DTrace-Script-XXXX',
-                                          DIR => '/tmp',
-                                          CLEANUP => 0,
+  my ($tfh)             = File::Temp->new( 'DTrace-Script-XXXX',
+                                           DIR => '/tmp',
+                                           UNLINK => 0,
                                          );
 
   $tfh->print($script_contents);
