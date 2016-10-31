@@ -16,7 +16,7 @@ my $loop = IO::Async::Loop->new;
 
 my ($pid) =
   $loop->spawn_child(
-    code = sub {
+    code => sub {
       foreach my $dir (qw(/usr/bin /usr/bin/sparcv9 /usr/sbin /usr/lib
                           /usr/lib/sparcv9)) {
         opendir(DH, $dir);
