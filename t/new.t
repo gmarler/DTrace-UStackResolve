@@ -12,6 +12,10 @@ use IO::File;
 
 use_ok('DTrace::UStackResolve');
 
+# This is the "first" loop - since this is a singleton, the
+# DTrace::UStackResolve object will 're-initialize' it, which is to say it'll
+# just use the same one
+#
 my $loop = IO::Async::Loop->new;
 
 my ($pid) =
@@ -54,10 +58,8 @@ my $obj = DTrace::UStackResolve->new( { pids => [ $pid ] } );
 
 isa_ok($obj, 'DTrace::UStackResolve', 'object is the right type');
 
-my $dtus_loop = $obj->loop;
-
-say "first loop:       $loop";
-say "DTUS object loop: $dtus_loop";
+# Pull out the loop we're already using...
+# my $dtus_loop = $obj->loop;
 
 $loop->run();
 
