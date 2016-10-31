@@ -504,7 +504,7 @@ sub _build_direct_lookup_cache {
     my $symtab_aref = $symbol_table_cache->get($key);
     my $tree = Tree::RB->new();
     foreach my $entry (@$symtab_aref) {
-      $tree->put( $entry->[0], $entry );
+      $tree->put( $entry->{start}, $entry );
     }
 
     $symtab_trees{$key} = $tree;
