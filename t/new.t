@@ -1,6 +1,7 @@
 use strict;
 use warnings;
 
+use v5.22;
 use Test::Most;
 use Data::Dumper;
 use Digest::SHA1;
@@ -37,7 +38,7 @@ for (my $i = 0; $i <= 1000; $i++) {
         my ($cipher) = Crypt::CBC->new( -key => 'super secret key',
                                         -cipher => 'Blowfish',
                                       );
-        my ($ciphertext) = $cipher($c);
+        my ($ciphertext) = $cipher->encrypt($c);
       }
     }
   }
