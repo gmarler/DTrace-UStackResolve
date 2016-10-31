@@ -12,7 +12,26 @@ my $obj = DTrace::UStackResolve->new( { pids => [ $pid ] } );
 
 isa_ok($obj, 'DTrace::UStackResolve', 'object is the right type');
 
-sleep(20);
+opendir(DH, "/etc");
+my @files = readdir(DH);
+closedir(DH);
+
+foreach my $file (@files) {
+  next if ($file =~ /^\.$/);
+  next if ($file =~ /^\.\.$/);
+
+  stat($file);
+  if (-f $file) {
+  }
+  if (-x $file) {
+  }
+  if (-d $file) {
+  }
+  if (-h $file) {
+  }
+}
+
+sleep(2);
 
 done_testing();
 
