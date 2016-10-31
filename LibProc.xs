@@ -242,6 +242,7 @@ function_iter(void *callback_arg, const GElf_Sym *sym, const char *sym_name)
   } else {
     croak("NULL FUNCNAME");
   }
+  free(proto_buffer);
   return(0);
 }
 
