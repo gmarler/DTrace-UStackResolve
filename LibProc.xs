@@ -14,8 +14,7 @@
 
 /* Pre-XS C Function Declarations */
 typedef struct {
-  /* TODO: Make this a dynamically allocated string */
-  char                demangled_name[8192];
+  char               *demangled_name;
   unsigned long long  symvalue;
   unsigned long long  symsize;
 } symtuple_t;
@@ -59,14 +58,14 @@ extract_symtuples(char *filename) {
           "callback_data_t");
   }
 
-  /* Allocate room for first 1000 symbol table function tuples */
-  if ( (cb_data->tuples = malloc(sizeof(symtuple_t) * 1000)) == NULL ) {
+  /* Allocate room for first 10 symbol table function tuples */
+  if ( (cb_data->tuples = malloc(sizeof(symtuple_t) * 10)) == NULL ) {
     croak("%s unable to allocate memory for %s\n",
           "DTrace::UStackResolve::LibProc::extract_symtuples",
-          "first 1000 tuples");
+          "first 10 tuples");
   }
 
-  cb_data->max_symbol_count = 1000;
+  cb_data->max_symbol_count = 10;
   cb_data->function_count = 0;
 
   if ((exec_handle = Pgrab_file(filename, &perr)) == NULL) {
@@ -107,14 +106,14 @@ extract_symtuples_from_PID(int pid) {
           "callback_data_t");
   }
 
-  /* Allocate room for first 1000 symbol table function tuples */
-  if ( (cb_data->tuples = malloc(sizeof(symtuple_t) * 1000)) == NULL ) {
+  /* Allocate room for first 10 symbol table function tuples */
+  if ( (cb_data->tuples = malloc(sizeof(symtuple_t) * 10)) == NULL ) {
     croak("%s unable to allocate memory for %s\n",
           "DTrace::UStackResolve::LibProc::extract_symtuples",
-          "first 1000 tuples");
+          "first 10 tuples");
   }
 
-  cb_data->max_symbol_count = 1000;
+  cb_data->max_symbol_count = 10;
   cb_data->function_count = 0;
 
   /* Use PGRAB_RDONLY to avoid perturbing the target PID */
@@ -183,8 +182,8 @@ function_iter(void *callback_arg, const GElf_Sym *sym, const char *sym_name)
   callback_data_t *callback_data = (callback_data_t *)callback_arg;
   char            *proto_buffer;
 
-  if ((proto_buffer = malloc(8192)) == NULL) {
-    croak("Unable to allocate an 8K demangle prototype buffer");
+  if ((proto_buffer = malloc(512)) == NULL) {
+    croak("Unable to allocate an 512 byte demangle prototype buffer");
   }
 
   /* If we've used up our allotted space, allocate 1000 more */
@@ -192,16 +191,16 @@ function_iter(void *callback_arg, const GElf_Sym *sym, const char *sym_name)
     if ( (callback_data->tuples =
             realloc(callback_data->tuples,
                     (sizeof(symtuple_t) * callback_data->max_symbol_count) +
-                    (sizeof(symtuple_t) * 1000))) == NULL) {
-      croak("Unable to allocate %ld + 1000 new symbol tuple slots",
+                    (sizeof(symtuple_t) * 10))) == NULL) {
+      croak("Unable to allocate %ld + 10 new symbol tuple slots",
             callback_data->max_symbol_count);
     }
-    callback_data->max_symbol_count += 1000;
+    callback_data->max_symbol_count += 10;
   }
 
   if (sym_name != NULL) {
     int demangle_result;
-    size_t proto_buffer_size = (size_t)8192;
+    size_t proto_buffer_size = (size_t)512;
     retry:
     demangle_result = cplus_demangle(sym_name, proto_buffer,
                                      proto_buffer_size);
@@ -209,8 +208,9 @@ function_iter(void *callback_arg, const GElf_Sym *sym, const char *sym_name)
       case 0:
         /* Only record if the function symbol is "real" */
         if (sym->st_size > 0) {
-          strcpy(callback_data->tuples[callback_data->function_count].demangled_name,
-                 proto_buffer);
+
+          callback_data->tuples[callback_data->function_count].demangled_name =
+            strdup(proto_buffer);
           callback_data->tuples[callback_data->function_count].symvalue = sym->st_value;
           callback_data->tuples[callback_data->function_count].symsize  = sym->st_size;
           callback_data->function_count++;
@@ -220,8 +220,9 @@ function_iter(void *callback_arg, const GElf_Sym *sym, const char *sym_name)
       case DEMANGLE_ENAME:
          /* Only record if the function symbol is "real" */
         if (sym->st_size > 0) {
-          strcpy(callback_data->tuples[callback_data->function_count].demangled_name,
-                 sym_name);
+
+          callback_data->tuples[callback_data->function_count].demangled_name =
+            strdup(sym_name);
           callback_data->tuples[callback_data->function_count].symvalue = sym->st_value;
           callback_data->tuples[callback_data->function_count].symsize  = sym->st_size;
           callback_data->function_count++;
@@ -230,7 +231,7 @@ function_iter(void *callback_arg, const GElf_Sym *sym, const char *sym_name)
         /* printf("SKIPPING INVALID MANGLED NAME %s\n",sym_name); */
         break;
       case DEMANGLE_ESPACE:
-        proto_buffer_size += 8192;
+        proto_buffer_size *= 2;
         if ((proto_buffer = realloc(proto_buffer, proto_buffer_size)) == NULL) {
           croak("Unable to expand demangle prototype buffer to %lld\n",proto_buffer_size);
         }
