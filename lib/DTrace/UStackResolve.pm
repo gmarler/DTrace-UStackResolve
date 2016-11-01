@@ -562,6 +562,8 @@ override BUILDARGS => sub {
 
 =for Pod::Coverage BUILD
 
+=cut
+
 #
 # This is where we define the order of attribute definition
 #
@@ -1347,7 +1349,8 @@ library, and returns the symbol table as an array ref of hashrefs.
 
 Each hash reference contains the following keys:
 
-  { function => I<function name>
+  { 
+    function => I<function name>,
     start    => I<start address>,
     start    => I<size of function>
   }
