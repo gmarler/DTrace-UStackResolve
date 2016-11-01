@@ -135,7 +135,7 @@ function_iter(void *callback_arg, const GElf_Sym *sym, const char *sym_name)
   callback_data_t *callback_data = (callback_data_t *)callback_arg;
   char            *proto_buffer;
 
-  if ((proto_buffer = malloc(512)) == NULL) {
+  if ((proto_buffer = calloc(1, 512)) == NULL) {
     croak("Unable to allocate an 512 byte demangle prototype buffer");
   }
 
@@ -240,7 +240,7 @@ extract_symtab(char *filename)
 
     symtuple_array = raw_symbol_struct->tuples;
 
-    warn("Extracted symbols from libproc\n");
+    /* warn("Extracted symbols from libproc\n"); */
     rval = newAV();
 
     for (i = 0; i < raw_symbol_struct->function_count; i++) {
