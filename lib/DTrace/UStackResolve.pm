@@ -1340,9 +1340,7 @@ sub _dyn_symbol_tuples {
 
 This section describes the interface to the underlying XS interface to libproc.
 
-=over 4
-
-=item <extract_symtab>
+=head2 extract_symtab("/path/to/exec/or/lib")
 
 This is the function that takes the name of any executable (a.out) or dynamic
 library, and returns the symbol table as an array ref of hashrefs.
@@ -1357,8 +1355,6 @@ Each hash reference contains the following keys:
 Usage:
 
   my $symtab_aref = DTrace::UStackResolve::extract_symtab("/lib/libc.so.1");
-
-=back
 
 =cut
 
