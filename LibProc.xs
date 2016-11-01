@@ -294,6 +294,10 @@ extract_symtab(char *filename)
       hash = newHV();
       hv_store(hash, "function", 8,
                newSVpv(symtuple_array[i].demangled_name, 0), 0);
+      /* Free the allocated space for each function name */
+      if (symtuple_array[i].demangled_name) {
+        free(symtuple_array[i].demangled_name);
+      }
       hv_store(hash, "start",    5,
               newSViv(symtuple_array[i].symvalue), 0);
       hv_store(hash, "size",     4,
