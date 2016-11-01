@@ -136,7 +136,7 @@ has 'loop' => (
 );
 
 #
-# Will be passed a list of PIDs or a list of binaries
+# Will be passed a list of PIDs or a list of executable file names
 # PIDs (live processes) and executables (a.outs) must be handled differently
 #
 # - A live process will immediately get all of the dynamic objects and their
