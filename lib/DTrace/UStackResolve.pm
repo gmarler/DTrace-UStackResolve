@@ -923,10 +923,10 @@ sub _start_dtrace_capture {
         prefork => sub {
           my ($parentfd, $childfd) = @_;
 
-          $parentfd->setsockopt(SOL_SOCKET, SO_RCVBUF, 5*1024*1024);
-          $parentfd->setsockopt(SOL_SOCKET, SO_SNDBUF, 5*1024*1024);
-          $childfd ->setsockopt(SOL_SOCKET, SO_RCVBUF, 5*1024*1024);
-          $childfd ->setsockopt(SOL_SOCKET, SO_SNDBUF, 5*1024*1024);
+          $parentfd->setsockopt(SOL_SOCKET, SO_RCVBUF, 50*1024*1024);
+          $parentfd->setsockopt(SOL_SOCKET, SO_SNDBUF, 50*1024*1024);
+          $childfd ->setsockopt(SOL_SOCKET, SO_RCVBUF, 50*1024*1024);
+          $childfd ->setsockopt(SOL_SOCKET, SO_SNDBUF, 50*1024*1024);
         },
         on_read => sub {
           my ( $stream, $buffref ) = @_;
