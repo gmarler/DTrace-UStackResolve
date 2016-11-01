@@ -33,7 +33,7 @@ sub test_constructor {
 sub test_constants {
   my ($test) = shift;
 
-  my @constants = qw( PMAP NM PGREP DTRACE );
+  my @constants = qw( PLDD ELFDUMP PGREP DTRACE );
 
   can_ok( $test->class_name, @constants );
   my $obj = $test->class_name->new( { execname => $test->{execname_attribute} } );
@@ -61,24 +61,24 @@ sub test_loop {
   isa_ok( $obj->loop, 'IO::Async::Loop' );
 }
 
-sub test_autoflush_dtrace_output {
-  my ($test) = shift;
-
-  my ($obj);
-  $obj = $test->class_name->new( { execname => $test->{execname_attribute},
-                                   autoflush_dtrace_output => 0 } );
-  cmp_ok( $obj->autoflush_dtrace_output, '==', 0,
-         'explicit autoflush_dtrace_output setting to 0' );
-
-  $obj = $test->class_name->new( { execname => $test->{execname_attribute} } );
-  cmp_ok( $obj->autoflush_dtrace_output, '==', 0,
-         'implicit default autoflush_dtrace_output setting to 0' );
-  $obj = $test->class_name->new( { execname => $test->{execname_attribute},
-                                   autoflush_dtrace_output => 1 } );
-  cmp_ok( $obj->autoflush_dtrace_output, '==', 1,
-         'explicit autoflush_dtrace_output setting to 1' );
-  # TODO: Actually test whether the autoflush *happens*
-}
+#sub test_autoflush_dtrace_output {
+#  my ($test) = shift;
+#
+#  my ($obj);
+#  $obj = $test->class_name->new( { execname => $test->{execname_attribute},
+#                                   autoflush_dtrace_output => 0 } );
+#  cmp_ok( $obj->autoflush_dtrace_output, '==', 0,
+#         'explicit autoflush_dtrace_output setting to 0' );
+#
+#  $obj = $test->class_name->new( { execname => $test->{execname_attribute} } );
+#  cmp_ok( $obj->autoflush_dtrace_output, '==', 0,
+#         'implicit default autoflush_dtrace_output setting to 0' );
+#  $obj = $test->class_name->new( { execname => $test->{execname_attribute},
+#                                   autoflush_dtrace_output => 1 } );
+#  cmp_ok( $obj->autoflush_dtrace_output, '==', 1,
+#         'explicit autoflush_dtrace_output setting to 1' );
+#  # TODO: Actually test whether the autoflush *happens*
+#}
 
 
 sub test_user_stack_frames {
@@ -109,27 +109,27 @@ sub test_user_stack_frames {
            'above user_stack_frames range should die' );
 }
 
-sub test_pids {
-  my ($test) = shift;
+#sub test_pids {
+#  my ($test) = shift;
+#
+#  my ($obj, $pids_aref);
+#
+#  $obj = $test->class_name->new( { execname => $test->{execname_attribute} } );
+#
+#  $pids_aref = $obj->pids;
+#
+#  cmp_deeply( $pids_aref, bag( re(qr/^\d+$/) ) );
+#}
 
-  my ($obj, $pids_aref);
-
-  $obj = $test->class_name->new( { execname => $test->{execname_attribute} } );
-
-  $pids_aref = $obj->pids;
-
-  cmp_deeply( $pids_aref, bag( re(qr/^\d+$/) ) );
-}
-
-sub test_constructor_with_pid {
-  my ($test) = shift;
-
-  my ($obj);
-
-  $obj = $test->class_name->new( { pid => $$ } );
-
-  like($obj->execname, qr/perl/, "passing pid arg produces an execname");
-}
+#sub test_constructor_with_pid {
+#  my ($test) = shift;
+#
+#  my ($obj);
+#
+#  $obj = $test->class_name->new( { pid => $$ } );
+#
+#  like($obj->execname, qr/perl/, "passing pid arg produces an execname");
+#}
 
 sub test_default_dtrace_type {
   my ($test) = shift;
