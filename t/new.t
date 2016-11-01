@@ -7,7 +7,7 @@ use Data::Dumper;
 use IO::Async::Loop;
 use Digest::SHA1;
 use Digest::MD5;
-#use Crypt::CBC;
+use Crypt::CBC;
 use IO::File;
 use Time::HiRes qw(gettimeofday tv_interval);
 
@@ -24,8 +24,7 @@ my ($pid) =
     code => sub {
       my $t0 = [gettimeofday];
       OUTER:
-      foreach my $dir (qw(/usr/bin /usr/bin/sparcv9 /usr/sbin /usr/lib
-                          /usr/lib/sparcv9)) {
+      foreach my $dir (qw(/usr/bin /usr/sbin /usr/lib)) {
         opendir(DH, $dir);
         my @files = readdir(DH);
         closedir(DH);
@@ -45,10 +44,10 @@ my ($pid) =
             my $c = do { local $/; <$fh>; };
             my ($digest) = Digest::SHA1::sha1_hex($c);
             $digest = Digest::MD5::md5_hex($c);
-            #my ($cipher) = Crypt::CBC->new( -key => 'super secret key',
-            #                                -cipher => 'Blowfish',
-            #                              );
-            #my ($ciphertext) = $cipher->encrypt($c);
+            my ($cipher) = Crypt::CBC->new( -key => 'super secret key',
+                                            -cipher => 'Blowfish',
+                                          );
+            my ($ciphertext) = $cipher->encrypt($c);
           }
         }
       }
