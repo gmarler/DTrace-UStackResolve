@@ -557,6 +557,12 @@ override BUILDARGS => sub {
 };
 
 #
+# Next line is to ignore BUILD subroutine for POD coverage tests
+#
+
+=for Pod::Coverage BUILD
+
+#
 # This is where we define the order of attribute definition
 #
 sub BUILD {
