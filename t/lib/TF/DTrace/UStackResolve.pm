@@ -42,7 +42,7 @@ sub test_constants {
 
   foreach my $constant( @constants ) {
     is( defined($obj->$constant), 1,
-      "$constant constant is defined" );
+        "$constant constant is defined" );
   }
 
   if ($^O eq "solaris") {
