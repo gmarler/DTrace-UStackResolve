@@ -38,7 +38,6 @@ int         function_iter(void *arg,
                           const GElf_Sym *sym,
                           const char *func_name);
 callback_data_t *extract_symtuples(char *filename);
-callback_data_t *extract_symtuples_from_PID(int pid);
 
 
 /* C Functions */
@@ -52,14 +51,14 @@ extract_symtuples(char *filename) {
   callback_data_t      *cb_data;
 
   /* allocate memory for callback data structure to pass around */
-  if ( (cb_data = malloc(sizeof(callback_data_t))) == NULL ) {
+  if ( (cb_data = calloc(1, sizeof(callback_data_t))) == NULL ) {
     croak("%s unable to allocate memory for %s\n",
           "DTrace::UStackResolve::LibProc::extract_symtuples",
           "callback_data_t");
   }
 
   /* Allocate room for first 10 symbol table function tuples */
-  if ( (cb_data->tuples = malloc(sizeof(symtuple_t) * 10)) == NULL ) {
+  if ( (cb_data->tuples = calloc(10, sizeof(symtuple_t))) == NULL ) {
     croak("%s unable to allocate memory for %s\n",
           "DTrace::UStackResolve::LibProc::extract_symtuples",
           "first 10 tuples");
@@ -74,52 +73,6 @@ extract_symtuples(char *filename) {
 
   /* Store the file_pshandle for later use in the callbacks */
   cb_data->file_pshandle = exec_handle;
-
-  /* NOTE: Passing pshandle in as cb_data argument for use as first argument of
-   *       Psymbol_iter later
-   * TODO: Fix the case of proc_object_iter to void *, which is a hack */
-
-  /* TODO: Since we're only doing one file at a time, we might be able to
-   *       dispense with Pobject_iter() altogether and go straight to
-   *       Psymbol_iter()
-   */
-  Pobject_iter(exec_handle, (void *)proc_object_iter, (void *)cb_data);
-
-  Pfree(exec_handle);
-
-  return(cb_data);
-}
-
-/* Function used to grab ps_prochandle for a PID and all of it's dependencies,
- * invoke Pobject_iter(), free up resources, then return array of structs to
- * XS routine */
-callback_data_t *
-extract_symtuples_from_PID(int pid) {
-  int                   perr;
-  struct ps_prochandle *exec_handle;
-  callback_data_t      *cb_data;
-
-  /* allocate memory for callback data structure to pass around */
-  if ( (cb_data = malloc(sizeof(callback_data_t))) == NULL ) {
-    croak("%s unable to allocate memory for %s\n",
-          "DTrace::UStackResolve::LibProc::extract_symtuples",
-          "callback_data_t");
-  }
-
-  /* Allocate room for first 10 symbol table function tuples */
-  if ( (cb_data->tuples = malloc(sizeof(symtuple_t) * 10)) == NULL ) {
-    croak("%s unable to allocate memory for %s\n",
-          "DTrace::UStackResolve::LibProc::extract_symtuples",
-          "first 10 tuples");
-  }
-
-  cb_data->max_symbol_count = 10;
-  cb_data->function_count = 0;
-
-  /* Use PGRAB_RDONLY to avoid perturbing the target PID */
-  if ((exec_handle = Pgrab(pid, PGRAB_RDONLY, &perr)) == NULL) {
-    croak("Unable to grab file: %s\n",Pgrab_error(perr));
-  }
 
   /* NOTE: Passing pshandle in as cb_data argument for use as first argument of
    *       Psymbol_iter later
@@ -312,48 +265,4 @@ extract_symtab(char *filename)
   OUTPUT:
     RETVAL
 
-AV *
-extract_symtab_from_pid(int pid)
-  PREINIT:
-    int              my_option;
-    AV              *rval;
-    HV              *hash;
-    SV              *temp_href;
-    callback_data_t *raw_symbol_struct;
-    symtuple_t      *symtuple_array;
-    long             i;
-  CODE:
-    if (items == 1) {
-      if (! SvIOK( ST(0) )) {
-        croak("setopt: Option must be an integer");
-      }
-      my_option = SvIV(ST(0));
-    } else {
-      croak("extract_symtab_from_pid: argument must be a single PID");
-    }
-
-    raw_symbol_struct = extract_symtuples_from_PID(my_option);
-    warn("We pulled %ld symbols\n",raw_symbol_struct->function_count);
-
-    symtuple_array = raw_symbol_struct->tuples;
-
-    rval = newAV();
-
-    for (i = 0; i < raw_symbol_struct->function_count; i++) {
-      hash = newHV();
-      hv_store(hash, "function", 8,
-               newSVpv(symtuple_array[i].demangled_name, 0), 0);
-      hv_store(hash, "start",    5,
-              newSViv(symtuple_array[i].symvalue), 0);
-      hv_store(hash, "size",     4,
-              newSViv(symtuple_array[i].symsize), 0);
-      temp_href = newRV_noinc( (SV *)hash );
-      av_push(rval, temp_href);
-    }
-    free(raw_symbol_struct->tuples);
-    free(raw_symbol_struct);
-
-    RETVAL = rval;
-  OUTPUT:
-    RETVAL
 
