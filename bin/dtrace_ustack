@@ -30,6 +30,10 @@ if (defined($execname)) {
   $ctor_args->{pids}      = $pids_aref;
 }
 
+if (defined($output_dir)) {
+  $ctor_args->{output_dir} = $output_dir;
+}
+
 my $dtus = DTrace::UStackResolve->new(
   $ctor_args
 );
