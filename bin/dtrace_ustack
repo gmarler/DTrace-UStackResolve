@@ -34,6 +34,10 @@ if (defined($output_dir)) {
   $ctor_args->{output_dir} = $output_dir;
 }
 
+if (defined($dtrace_type)) {
+  $ctor_args->{type} = $dtrace_type;
+}
+
 my $dtus = DTrace::UStackResolve->new(
   $ctor_args
 );
