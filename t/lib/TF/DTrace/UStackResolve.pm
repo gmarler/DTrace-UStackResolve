@@ -37,7 +37,7 @@ sub test_constants {
   my ($test) = shift;
 
   my $obj = $test->{obj};
-  isa_ok($obj, $test->class, "object is of type " . $test->class);
+  isa_ok($obj, $test->class_name, "object is of type " . $test->class_name);
 
   my @constants = qw( PLDD ELFDUMP PGREP DTRACE );
 
