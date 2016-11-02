@@ -26,16 +26,16 @@ dies_ok(
 
 
 # Check good custom dir
-my $tempdir = File::Temp->tempdir(
+my $tempdir = File::Temp::tempdir(
                 "testtempdirXXXXXX",
                 DIR => "/tmp",
                 CLEANUP => 0,
               );
 my $dirname = $tempdir->dirname;
 diag "Created temporary directory $dirname";
-my $obj = DTrace::UStackResolve->new( { pids => [ $$ ],
-                                        output_dir => $dirname,
-                                      } );
+$obj = DTrace::UStackResolve->new( { pids => [ $$ ],
+                                     output_dir => $dirname,
+                                   } );
 cmp_ok( $obj->output_dir, 'eq', $dirname,
         "Default output dir is $dirname" );
 
