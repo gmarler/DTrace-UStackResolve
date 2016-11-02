@@ -22,6 +22,9 @@ sub test_startup {
 
   # Picking an execname that EXTREMELY likely to be running on any Solaris
   $test->{execname_attribute} = '/usr/sbin/nscd';
+
+  my $obj = $test->class_name->new( { pids => [ $$ ] } );
+  $test->{obj} = $obj;
 }
 
 sub test_constructor {
@@ -33,14 +36,14 @@ sub test_constructor {
 sub test_constants {
   my ($test) = shift;
 
+  my $obj = $test->{obj};
   my @constants = qw( PLDD ELFDUMP PGREP DTRACE );
 
   foreach my $constant (@constants) {
-    can_ok( $test->class_name, $constant, "Constant $constant properly defined" );
+    can_ok( $obj, $constant, "Constant $constant properly defined" );
   }
 
   #my $obj = $test->class_name->new( { execname => $test->{execname_attribute} } );
-  my $obj = $test->class_name->new( { pids => [ $$ ] } );
 
   #diag $obj->dump;
 
