@@ -1,0 +1,10 @@
+
+use Devel::Peek;
+use DTrace::UStackResolve;
+
+# Pick a library with small symbol count
+my $symtab_aref = DTrace::UStackResolve::extract_symtab("/lib/libkstat.so.1");
+
+Dump($symtab_aref);
+
+
