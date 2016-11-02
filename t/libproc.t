@@ -17,7 +17,7 @@ cmp_deeply( $aref,
   array_each(
     [ re('^.+$' ),
       re('^\d+$'),
-      re('^\d+$')
+      re('^\D+$')
     ]
   ),
   'each aref has items with correct order and proper values'
