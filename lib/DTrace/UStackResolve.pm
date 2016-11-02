@@ -9,6 +9,7 @@ use Moose::Util::TypeConstraints;
 use MooseX::ClassAttribute;
 use MooseX::Log::Log4perl;
 use namespace::autoclean;
+use File::Spec            qw();
 use File::Basename        qw( basename );
 use File::stat;
 use File::ShareDir        qw( :ALL );
@@ -302,8 +303,11 @@ has 'dscript_unresolved_out_fh' => (
   default     =>
     sub {
       my ($self) = shift;
+      my ($output_dir) = $self->output_dir;
+      confess "output_dir not set yet"
+        if not defined($output_dir);
       my ($fh)   = File::Temp->new('DTrace-UNRESOLVED-XXXX',
-                                    DIR => '/tmp',
+                                    DIR => $output_dir,
                                     UNLINK => 0,
                                    );
       say "UNRESOLVED USTACK OUTPUT FILE: " . $fh->filename;
@@ -320,9 +324,12 @@ has 'dscript_err_fh' => (
   default     =>
     sub {
       my ($self) = shift;
+      my ($output_dir) = $self->output_dir;
+      confess "output_dir not set yet"
+        if not defined($output_dir);
       my ($fh)   = File::Temp->new('DTrace-UNRESOLVED-ERR-XXXX',
-                                    DIR => '/tmp',
-                                    UNLINK => 1,
+                                    DIR => $output_dir,
+                                    UNLINK => 0,
                                    );
       return $fh;
     },
@@ -344,9 +351,13 @@ sub _build_resolved_out_fh {
   # NOTE: Since we can have multiple PIDs, just take the first one
   #       Maybe later we can split these out, if we care, and produce
   #       an array of resolved output files to write into
+  my ($output_dir) = $self->output_dir;
+  confess "output_dir not set yet"
+    if not defined($output_dir);
   my ($pid)            = $self->pids->[0];
   my ($execname)       = $self->personal_execname;
-  my ($resolved_fname) = "/tmp/$execname-$pid.RESOLVED";
+  my ($resolved_fname) = File::Spec->catfile( $output_dir,
+                                              "$execname-$pid.RESOLVED");
   my ($resolved_fh)    = IO::File->new("$resolved_fname", ">>") or
     die "Unable to open $resolved_fname for writing";
 
@@ -500,12 +511,14 @@ has 'autoflush_dtrace_output' => (
 sub _build_symbol_table_cache {
   my ($self) = shift;
 
-  # TODO: Allow constructor to pass in a directory to hold the caches
+  my ($output_dir) = $self->output_dir;
+  confess "output_dir not set yet"
+    if not defined($output_dir);
+
   CHI->new(
             driver       => 'BerkeleyDB',
             cache_size   => '1024m',
-            #root_dir     => '/bb/pm/data/symbol_tables',
-            root_dir     => '/tmp/symbol_tables',
+            root_dir     => File::Spec->catfile( $output_dir, 'symbol_tables' ),
             namespace    => 'symbol_tables',
             global       => 0,
             on_get_error => 'warn',
@@ -520,12 +533,14 @@ sub _build_symbol_table_cache {
 sub _build_direct_symbol_cache {
   my ($self) = shift;
 
-  # TODO: Allow constructor to pass in a directory to hold the caches
+  my ($output_dir) = $self->output_dir;
+  confess "output_dir not set yet"
+    if not defined($output_dir);
+
   CHI->new(
             driver       => 'BerkeleyDB',
             cache_size   => '1024m',
-            #root_dir     => '/bb/pm/data/symbol_tables',
-            root_dir     => '/tmp/symbol_tables',
+            root_dir     => File::Spec->catfile( $output_dir, 'symbol_tables' ),
             namespace    => 'direct_symbol',
             global       => 0,
             on_get_error => 'warn',
@@ -924,11 +939,17 @@ sub _replace_DTrace_keywords {
 sub _build_dtrace_script_fh {
   my ($self) = shift;
 
-  my ($script_contents) = $self->dtrace_script_contents;
-  my ($tfh)             = File::Temp->new( 'DTrace-Script-XXXX',
-                                           DIR => '/tmp',
-                                           UNLINK => 0,
-                                         );
+  my ($output_dir) = $self->output_dir;
+  confess "output_dir not set yet"
+    if not defined($output_dir);
+
+  my ($script_contents) =
+    $self->dtrace_script_contents;
+  my ($tfh) =
+    File::Temp->new( 'DTrace-Script-XXXX',
+                     DIR    => $output_dir,
+                     UNLINK => 0,
+                   );
 
   $tfh->print($script_contents);
   $tfh->flush;
