@@ -135,6 +135,12 @@ function_iter(void *callback_arg, const GElf_Sym *sym, const char *sym_name)
   callback_data_t *callback_data = (callback_data_t *)callback_arg;
   char            *proto_buffer;
 
+  /* return immediately so no memory is allocated if the function has no
+   * size - that means it isn't "real" */
+  if (sym->st_size == 0) {
+    return(0);
+  }
+
   if ((proto_buffer = calloc(1, 512)) == NULL) {
     croak("Unable to allocate an 512 byte demangle prototype buffer");
   }
@@ -159,29 +165,21 @@ function_iter(void *callback_arg, const GElf_Sym *sym, const char *sym_name)
                                      proto_buffer_size);
     switch (demangle_result) {
       case 0:
-        /* Only record if the function symbol is "real" */
-        if (sym->st_size > 0) {
-
-          callback_data->tuples[callback_data->function_count].demangled_name =
-            strdup(proto_buffer);
-          callback_data->tuples[callback_data->function_count].symvalue = sym->st_value;
-          callback_data->tuples[callback_data->function_count].symsize  = sym->st_size;
-          callback_data->function_count++;
-          /* printf("%-32s %llu %llu\n", proto_buffer, sym->st_value, sym->st_size); */
-        }
+        callback_data->tuples[callback_data->function_count].demangled_name =
+          strdup(proto_buffer);
+        callback_data->tuples[callback_data->function_count].symvalue = sym->st_value;
+        callback_data->tuples[callback_data->function_count].symsize  = sym->st_size;
+        callback_data->function_count++;
+        /* printf("%-32s %llu %llu\n", proto_buffer, sym->st_value, sym->st_size); */
         break;
       case DEMANGLE_ENAME:
-         /* Only record if the function symbol is "real" */
-        if (sym->st_size > 0) {
-
-          callback_data->tuples[callback_data->function_count].demangled_name =
-            strdup(sym_name);
-          callback_data->tuples[callback_data->function_count].symvalue = sym->st_value;
-          callback_data->tuples[callback_data->function_count].symsize  = sym->st_size;
-          callback_data->function_count++;
-          /* printf("%-32s %llu %llu\n", sym_name, sym->st_value, sym->st_size); */
-        }
-        /* printf("SKIPPING INVALID MANGLED NAME %s\n",sym_name); */
+        /* Didn't need demangling anyway - use as is */
+        callback_data->tuples[callback_data->function_count].demangled_name =
+          strdup(sym_name);
+        callback_data->tuples[callback_data->function_count].symvalue = sym->st_value;
+        callback_data->tuples[callback_data->function_count].symsize  = sym->st_size;
+        callback_data->function_count++;
+        /* printf("%-32s %llu %llu\n", sym_name, sym->st_value, sym->st_size); */
         break;
       case DEMANGLE_ESPACE:
         proto_buffer_size *= 2;
