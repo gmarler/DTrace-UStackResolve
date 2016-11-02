@@ -1280,15 +1280,12 @@ sub _gen_symbol_table {
 
   # Sort the symbol table by starting address before returning it
   say "SORTING SYMBOL TABLE: $exec_or_lib_path";
-  my (@sorted_symtab) =
+  # Avoid copying the array
+  @$symtab_aref =
     sort {$a->[$FUNCTION_START_ADDRESS] <=> $b->[$FUNCTION_START_ADDRESS] }
     @$symtab_aref;
 
-  # TODO: Add to cache with:
-  #       KEY: { exec_or_lib_path => $exec_or_lib_path, sha1 => $exec_or_lib_sha1 }
-
-  #say "RETURNING SORTED SYMBOL TABLE FOR: $exec_or_lib_path";
-  return \@sorted_symtab;
+  return $symtab_aref;
 }
 
 
