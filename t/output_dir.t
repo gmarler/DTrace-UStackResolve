@@ -3,7 +3,7 @@ use warnings;
 
 use v5.22;
 use Test::Most;
-use File::Temp;
+use File::Temp      qw();
 use Data::Dumper;
 
 use_ok('DTrace::UStackResolve');
@@ -26,10 +26,11 @@ dies_ok(
 
 
 # Check good custom dir
-my $tempdir = tempdir( "testtempdirXXXXXX",
-                       DIR => "/tmp",
-                       CLEANUP => 0,
-                     );
+my $tempdir = File::Temp->tempdir(
+                "testtempdirXXXXXX",
+                DIR => "/tmp",
+                CLEANUP => 0,
+              );
 my $dirname = $tempdir->dirname;
 diag "Created temporary directory $dirname";
 my $obj = DTrace::UStackResolve->new( { pids => [ $$ ],
