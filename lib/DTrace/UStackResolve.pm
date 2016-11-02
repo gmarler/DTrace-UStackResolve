@@ -9,6 +9,7 @@ use Moose::Util::TypeConstraints;
 use MooseX::ClassAttribute;
 use MooseX::Log::Log4perl;
 use namespace::autoclean;
+use Data::Alias;
 use File::Spec            qw();
 use File::Basename        qw( basename );
 use File::stat;
@@ -1281,7 +1282,7 @@ sub _gen_symbol_table {
   # Sort the symbol table by starting address before returning it
   say "SORTING SYMBOL TABLE: $exec_or_lib_path";
   # Avoid copying the array - try to sort in place
-  my @symtab_array = @$symtab_aref;
+  alias my @symtab_array = @$symtab_aref;
   @symtab_array =
     sort { $a->[$FUNCTION_START_ADDRESS] <=> $b->[$FUNCTION_START_ADDRESS] }
     @symtab_array;
