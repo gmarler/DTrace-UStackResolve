@@ -4,6 +4,7 @@
 #include "XSUB.h"
 #include "ppport.h"
 
+#include <stdlib.h>
 #include <demangle.h>
 /*
 #include <procfs.h>
@@ -33,6 +34,7 @@ typedef struct {
 
 
 
+int         symstart_comparator(const void *p, const void *q);
 int         proc_object_iter(void *, void *, const char *);
 int         function_iter(void *arg,
                           const GElf_Sym *sym,
@@ -41,6 +43,15 @@ callback_data_t *extract_symtuples(char *filename);
 
 
 /* C Functions */
+
+/* Function used by qsort() in sorting our symbol table before returning it to
+ * Perl */
+int symstart_comparator(const void *p, const void *q)
+{
+  int l = ((symtuple_t *)p)->symvalue;
+  int r = ((symtuple_t *)q)->symvalue;
+  return (l - r);
+}
 
 /* Function used to grab ps_prochandle, invoke Pobject_Iter(), free up
  * resources, then return array of structs to XS routine */
@@ -239,6 +250,12 @@ extract_symtab(char *filename)
     /* warn("We pulled %ld symbols\n",raw_symbol_struct->function_count); */
 
     symtuple_array = raw_symbol_struct->tuples;
+
+    /* pre-sort the symtuple array by symbol start address before returning -
+     * this consumes far too much memory if we do it in Perl, as in-place
+     * sorting doesn't actually work for arefs of arefs */
+    qsort(symtuple_array, raw_symbol_struct->function_count,
+          sizeof(symtuple_t), symstart_comparator );
 
     /* warn("Extracted symbols from libproc\n"); */
     rval = newAV();
