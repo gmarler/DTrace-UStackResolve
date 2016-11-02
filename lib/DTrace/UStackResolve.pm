@@ -1276,7 +1276,7 @@ sub _gen_symbol_table {
   }
 
   $symcount = scalar(@$symtab_aref);
-  say "$exec_or_lib_path: PARSED TOTAL OF $symcount SYMBOLS";
+  say "$exec_or_lib_path: EXTRACTED TOTAL OF $symcount SYMBOLS";
 
   # Sort the symbol table by starting address before returning it
   say "SORTING SYMBOL TABLE: $exec_or_lib_path";
