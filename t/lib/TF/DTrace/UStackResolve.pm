@@ -35,7 +35,10 @@ sub test_constants {
 
   my @constants = qw( PLDD ELFDUMP PGREP DTRACE );
 
-  can_ok( $test->class_name, @constants, 'Constants properly defined' );
+  foreach my $constant (@constants) {
+    can_ok( $test->class_name, $constant, "Constant $constant properly defined" );
+  }
+
   my $obj = $test->class_name->new( { execname => $test->{execname_attribute} } );
 
   #diag $obj->dump;
