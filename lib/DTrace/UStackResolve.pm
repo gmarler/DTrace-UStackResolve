@@ -139,8 +139,16 @@ class_has 'DTRACE' => (
 has 'output_dir' => (
   is          => 'ro',
   isa         => 'Str',
-  builder     => '_build_output_dir',
-  predicate   => '_has_output_dir',
+  default     =>
+    sub {
+      my $self = shift;
+      if (exists($self->{output_dir})) {
+        return $self->{output_dir};
+      } else {
+        say "Defaulting to OUTPUT DIR of: /tmp";
+        return "/tmp";
+      }
+    },
   lazy        => 1,
 );
 
@@ -592,6 +600,8 @@ override BUILDARGS => sub {
 sub BUILD {
   my ($self) = shift;
 
+  # Ensure we have an output dir do put things in
+  $self->output_dir;
   #say "Building D Script Unresolved Output Filename: " .
   #  $self->dscript_unresolved_out;
   $self->_sanity_check_type;
@@ -600,8 +610,6 @@ sub BUILD {
   $self->sha1_func;
   $self->gen_symtab_func;
   $self->loop;
-  # Ensure we have an output dir do put things in
-  $self->output_dir;
   # TODO: Cleanup - Doesn't seem to be a builder here anymore
   $self->pids;
   $self->pid_starttime;
