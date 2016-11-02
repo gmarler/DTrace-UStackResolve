@@ -13,7 +13,7 @@ isa_ok( $aref, 'ARRAY', 'extract_symtab returns an aref' );
 
 cmp_deeply( $aref, array_each(isa("ARRAY")), 'each member of aref is an aref' );
 
-cmp_deeply( $aref, 
+cmp_deeply( $aref,
   array_each(
     [ re('^.+$' ),
       re('^\d+$'),
