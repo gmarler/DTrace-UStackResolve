@@ -153,15 +153,15 @@ sub test_default_dtrace_type {
   cmp_ok($obj->type, 'eq', "profile", "Default DTrace type is profile");
 }
 
-#sub test_bad_dtrace_type {
-#  my ($test) = shift;
-#
-#  dies_ok(
-#    sub {
-#      my $obj = $test->class_name->new( { pid => $$, type => 'bogus' } );
-#    },
-#    "Bad DTrace type is flagged"
-#  );
-#}
+sub test_bad_dtrace_type {
+  my ($test) = shift;
+
+  dies_ok(
+    sub {
+      my $obj = $test->class_name->new( { pids => [ $$ ], type => 'bogus' } );
+    },
+    "Bad DTrace type is flagged"
+  );
+}
 
 1;
