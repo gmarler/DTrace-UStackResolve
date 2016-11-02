@@ -29,7 +29,7 @@ dies_ok(
 my $tempdir = File::Temp::tempdir(
                 "testtempdirXXXXXX",
                 DIR => "/tmp",
-                CLEANUP => 0,
+                CLEANUP => 1,
               );
 diag "Created temporary directory $tempdir";
 $obj = DTrace::UStackResolve->new( { pids => [ $$ ],
