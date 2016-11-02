@@ -36,7 +36,7 @@ $obj = DTrace::UStackResolve->new( { pids => [ $$ ],
                                      output_dir => $tempdir,
                                    } );
 cmp_ok( $obj->output_dir, 'eq', $tempdir,
-        "Default output dir is $tempdir" );
+        "CUSTOM output dir is $tempdir" );
 
 # Check non-writeable temp dir
 my $changed = chmod 0500, $tempdir;
@@ -47,7 +47,7 @@ dies_ok(
                                             output_dir => $tempdir,
                                           } );
   },
-  "Should die with non-writeable output dir $tempdir"
+  "Should die for non-writeable output dir $tempdir"
 );
 
 done_testing();
