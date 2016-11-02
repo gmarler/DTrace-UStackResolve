@@ -220,8 +220,10 @@ extract_symtab(char *filename)
   PREINIT:
     char            *my_option;
     AV              *rval;
+    AV              *symtab_entry_aref;
     HV              *hash;
     SV              *temp_href;
+    SV              *temp_aref;
     callback_data_t *raw_symbol_struct;
     symtuple_t      *symtuple_array;
     long             i;
@@ -244,19 +246,25 @@ extract_symtab(char *filename)
     rval = newAV();
 
     for (i = 0; i < raw_symbol_struct->function_count; i++) {
-      hash = newHV();
-      hv_store(hash, "function", 8,
-               newSVpv(symtuple_array[i].demangled_name, 0), 0);
+      symtab_entry_aref = newAV();
+
+      /* Index 0 == Function Name */
+      av_push(symtab_entry_aref,
+              newSVpv(symtuple_array[i].demangled_name, 0));
+
       /* Free the allocated space for each function name */
       if (symtuple_array[i].demangled_name) {
         free(symtuple_array[i].demangled_name);
       }
-      hv_store(hash, "start",    5,
-              newSViv(symtuple_array[i].symvalue), 0);
-      hv_store(hash, "size",     4,
-              newSViv(symtuple_array[i].symsize), 0);
-      temp_href = newRV_noinc( (SV *)hash );
-      av_push(rval, temp_href);
+
+      /* Index 1 == Function Start Address */
+      av_push(symtab_entry_aref, newSViv(symtuple_array[i].symvalue));
+
+      /* Index 2 == Function Size */
+      av_push(symtab_entry_aref, newSViv(symtuple_array[i].symsize));
+
+      temp_aref = newRV_noinc( (SV *)symtab_entry_aref );
+      av_push(rval, temp_aref);
     }
     free(raw_symbol_struct->tuples);
     free(raw_symbol_struct);
