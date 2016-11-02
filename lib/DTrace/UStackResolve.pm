@@ -9,7 +9,6 @@ use Moose::Util::TypeConstraints;
 use MooseX::ClassAttribute;
 use MooseX::Log::Log4perl;
 use namespace::autoclean;
-#use Data::Alias;
 use File::Spec            qw();
 use File::Basename        qw( basename );
 use File::stat;
@@ -1279,17 +1278,6 @@ sub _gen_symbol_table {
   $symcount = scalar(@$symtab_aref);
   say "$exec_or_lib_path: EXTRACTED TOTAL OF $symcount SYMBOLS";
 
-  # Sort the symbol table by starting address before returning it
-  # NOTE: should no longer be necessary, since we qsort() in extract_symtab()
-  # now
-  #say "SORTING SYMBOL TABLE: $exec_or_lib_path";
-  ## Avoid copying the array - try to sort in place
-  #alias my @symtab_array = @$symtab_aref;
-  #@symtab_array =
-  #  sort { $a->[$FUNCTION_START_ADDRESS] <=> $b->[$FUNCTION_START_ADDRESS] }
-  #  @symtab_array;
-
-  #say "RETURNING SORTED SYMBOL TABLE: $exec_or_lib_path";
   return $symtab_aref;
 }
 
