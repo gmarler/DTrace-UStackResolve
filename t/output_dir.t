@@ -31,23 +31,22 @@ my $tempdir = File::Temp::tempdir(
                 DIR => "/tmp",
                 CLEANUP => 0,
               );
-my $dirname = $tempdir->dirname;
-diag "Created temporary directory $dirname";
+diag "Created temporary directory $tempdir";
 $obj = DTrace::UStackResolve->new( { pids => [ $$ ],
-                                     output_dir => $dirname,
+                                     output_dir => $tempdir,
                                    } );
-cmp_ok( $obj->output_dir, 'eq', $dirname,
-        "Default output dir is $dirname" );
+cmp_ok( $obj->output_dir, 'eq', $tempdir,
+        "Default output dir is $tempdir" );
 
 # Check non-writeable temp dir
-chmod "0500", $dirname;
+chmod "0500", $tempdir;
 dies_ok(
   sub {
     my $obj = DTrace::UStackResolve->new( { pids => [ $$ ],
-                                            output_dir => $dirname,
+                                            output_dir => $tempdir,
                                           } );
   },
-  "Should die with non-writeable output dir $dirname"
+  "Should die with non-writeable output dir $tempdir"
 );
 
 done_testing();
