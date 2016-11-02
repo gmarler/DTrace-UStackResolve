@@ -33,8 +33,16 @@ use Carp;
 use Assert::Conditional  qw( :scalar );
 use Socket                qw(SOL_SOCKET SO_RCVBUF SO_SNDBUF);
 use Config;
+use Readonly;
 use Data::Dumper;
 
+#
+# CONSTANTS
+#
+# These are the array indices for symbol table entries
+Readonly my $FUNCTION_NAME          => 0;
+Readonly my $FUNCTION_START_ADDRESS => 1;
+Readonly my $FUNCTION_SIZE          => 2;
 
 our %dtrace_types = (
   "profile"         => "profile_pid.d",
@@ -509,7 +517,7 @@ sub _build_direct_lookup_cache {
     my $symtab_aref = $symbol_table_cache->get($key);
     my $tree = Tree::RB->new();
     foreach my $entry (@$symtab_aref) {
-      $tree->put( $entry->{start}, $entry );
+      $tree->put( $entry->[$FUNCTION_START_ADDRESS], $entry );
     }
 
     # This key is the absolute path to the item
@@ -1029,12 +1037,13 @@ sub _resolve_symbol {
     if ( defined( my $search_tree = $symtab_trees{$keyfile} ) ) {
       my $symtab_entry = $search_tree->lookup( $offset, LULTEQ );
       if (defined($symtab_entry)) {
-        if (($offset >= $symtab_entry->{start} ) and
-            ($offset <= ($symtab_entry->{start} + $symtab_entry->{size}) ) ) {
+        if (($offset >= $symtab_entry->[$FUNCTION_START_ADDRESS] ) and
+            ($offset <= ($symtab_entry->[$FUNCTION_START_ADDRESS] +
+                         $symtab_entry->[$FUNCTION_SIZE]) ) ) {
           my $resolved =
             sprintf("%s+0x%x",
-                    $symtab_entry->{function},
-                    $offset - $symtab_entry->{start});
+                    $symtab_entry->[$FUNCTION_NAME],
+                    $offset - $symtab_entry->[$FUNCTION_START_ADDRESS]);
           # If we got here, we have something to store in the direct symbol
           # lookup cache
           $direct_symbol_cache->set($line,$resolved,'7 days');
@@ -1216,7 +1225,9 @@ sub _gen_symbol_table {
 
   # Sort the symbol table by starting address before returning it
   say "SORTING SYMBOL TABLE: $exec_or_lib_path";
-  my (@sorted_symtab) = sort {$a->{start} <=> $b->{start} } @$symtab_aref;
+  my (@sorted_symtab) =
+    sort {$a->[$FUNCTION_START_ADDRESS] <=> $b->[$FUNCTION_START_ADDRESS] }
+    @$symtab_aref;
 
   # TODO: Add to cache with:
   #       KEY: { exec_or_lib_path => $exec_or_lib_path, sha1 => $exec_or_lib_sha1 }
@@ -1274,10 +1285,11 @@ sub _exec_symbol_tuples {
     say "ADJUSTING SYMBOLS IN: $file, BY LOAD ADDRESS $load_address";
     foreach my $tuple (@$function_tuples) {
       # Only want to do this if the result won't be negative
-      if (($tuple->{start} - $load_address) <= 0) {
-        say "UNABLE TO ADJUST OFFSET " . $tuple->{start} . " for " . $tuple->{function};
+      if (($tuple->[$FUNCTION_START_ADDRESS] - $load_address) <= 0) {
+        say "UNABLE TO ADJUST OFFSET " . $tuple->[$FUNCTION_START_ADDRESS] .
+            " for " . $tuple->[$FUNCTION_NAME];
       } else {
-        $tuple->{start} -= $load_address;
+        $tuple->[$FUNCTION_START_ADDRESS] -= $load_address;
       }
     }
   }
@@ -1349,7 +1361,7 @@ library, and returns the symbol table as an array ref of hashrefs.
 
 Each hash reference contains the following keys:
 
-  { 
+  {
     function => I<function name>,
     start    => I<start address>,
     start    => I<size of function>
