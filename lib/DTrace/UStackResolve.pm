@@ -152,6 +152,15 @@ has 'output_dir' => (
   lazy        => 1,
 );
 
+sub _sanity_check_output_dir {
+  my ($self) = @_;
+
+  confess "OUTPUT DIR [" . $self->output_dir . "] MUST EXIST"
+    if ! -d $self->output_dir;
+  confess "OUTPUT DIR [" . $self->output_dir . "] MUST BE WRITEABLE"
+    if ! -w $self->output_dir;
+}
+
 has 'loop' => (
   is          => 'ro',
   isa         => 'IO::Async::Loop',
@@ -602,6 +611,7 @@ sub BUILD {
 
   # Ensure we have an output dir do put things in
   $self->output_dir;
+  $self->_sanity_check_output_dir;
   #say "Building D Script Unresolved Output Filename: " .
   #  $self->dscript_unresolved_out;
   $self->_sanity_check_type;
