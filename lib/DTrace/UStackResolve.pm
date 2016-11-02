@@ -1285,6 +1285,7 @@ sub _gen_symbol_table {
     sort {$a->[$FUNCTION_START_ADDRESS] <=> $b->[$FUNCTION_START_ADDRESS] }
     @$symtab_aref;
 
+  say "RETURNING SORTED SYMBOL TABLE: $exec_or_lib_path";
   return $symtab_aref;
 }
 
