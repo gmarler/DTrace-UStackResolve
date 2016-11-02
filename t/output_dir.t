@@ -39,7 +39,8 @@ cmp_ok( $obj->output_dir, 'eq', $tempdir,
         "Default output dir is $tempdir" );
 
 # Check non-writeable temp dir
-chmod "0500", $tempdir;
+my $changed = chmod 0500, $tempdir;
+cmp_ok($changed, '==', 1, 'chmod altered one dir');
 dies_ok(
   sub {
     my $obj = DTrace::UStackResolve->new( { pids => [ $$ ],
