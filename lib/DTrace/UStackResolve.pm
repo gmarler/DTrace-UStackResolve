@@ -525,7 +525,7 @@ sub _build_symbol_table_cache {
             on_set_error => 'warn',
             l1_cache     => { driver   => 'RawMemory',
                               global   => 0,
-                              max_size => 64*1024*1024,
+                              max_size => 8*1024*1024,
                             }
            );
 }
@@ -539,7 +539,7 @@ sub _build_direct_symbol_cache {
 
   CHI->new(
             driver       => 'BerkeleyDB',
-            cache_size   => '1024m',
+            cache_size   => '8m',
             root_dir     => File::Spec->catfile( $output_dir, 'symbol_tables' ),
             namespace    => 'direct_symbol',
             global       => 0,
@@ -547,7 +547,7 @@ sub _build_direct_symbol_cache {
             on_set_error => 'warn',
             l1_cache     => { driver   => 'RawMemory',
                               global   => 0,
-                              max_size => 128*1024*1024,
+                              max_size => 1*1024*1024,
                             }
            );
 }
@@ -1101,7 +1101,7 @@ sub _resolve_symbol {
                     $offset - $symtab_entry->[$FUNCTION_START_ADDRESS]);
           # If we got here, we have something to store in the direct symbol
           # lookup cache
-          $direct_symbol_cache->set($line,$resolved,'7 days');
+          $direct_symbol_cache->set($line,$resolved,'10 minutes');
           $line =~ s/^(?<keyfile>[^:]+):0x(?<offset>[\da-fA-F]+)$/${resolved}/;
         } else {
           $line .= " [SYMBOL TABLE LOOKUP FAILED - POTENTIAL MATCH FAILED]";
