@@ -9,11 +9,14 @@ use v5.22;
 use DTrace::UStackResolve;
 use Getopt::Long;
 
-my ($execname, @pids, $pids_aref, $dtrace_type, $ctor_args);
+my ($execname, $output_dir, @pids, $pids_aref, $dtrace_type, $ctor_args);
 
-GetOptions("execname=s", \$execname,
-           "pids=s",     \@pids,
-           "type=s",     \$dtrace_type,
+GetOptions(
+           # execname not currently supported
+           #"execname=s", \$execname,
+           "output_dir=s", \$output_dir,
+           "pids=s",       \@pids,
+           "type=s",       \$dtrace_type,
        )
          or die("Error in command line arguments");
 
