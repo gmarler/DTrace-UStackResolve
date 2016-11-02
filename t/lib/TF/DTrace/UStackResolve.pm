@@ -39,7 +39,8 @@ sub test_constants {
     can_ok( $test->class_name, $constant, "Constant $constant properly defined" );
   }
 
-  my $obj = $test->class_name->new( { execname => $test->{execname_attribute} } );
+  #my $obj = $test->class_name->new( { execname => $test->{execname_attribute} } );
+  my $obj = $test->class_name->new( { pids => [ $$ ] } );
 
   #diag $obj->dump;
 
@@ -60,7 +61,8 @@ sub test_constants {
 sub test_loop {
   my ($test) = shift;
 
-  my $obj = $test->class_name->new( { execname => $test->{execname_attribute} } );
+  #my $obj = $test->class_name->new( { execname => $test->{execname_attribute} } );
+  my $obj = $test->class_name->new( { pids => [ $$ ] } );
   isa_ok( $obj->loop, 'IO::Async::Loop' );
 }
 
@@ -89,24 +91,31 @@ sub test_user_stack_frames {
 
   my ($obj);
 
-  $obj = $test->class_name->new( { execname => $test->{execname_attribute} } );
+  #$obj = $test->class_name->new( { execname => $test->{execname_attribute} } );
+  $obj = $test->class_name->new( { pids => [ $$ ] } );
   cmp_ok( $obj->user_stack_frames , '==', 100,
           'implict default user_stack_frames setting to 100' );
 
 
-  $obj = $test->class_name->new( { execname => $test->{execname_attribute},
+  #$obj = $test->class_name->new( { execname => $test->{execname_attribute},
+  #                                 user_stack_frames => 1, } );
+  $obj = $test->class_name->new( { pids => [ $$ ],
                                    user_stack_frames => 1, } );
   cmp_ok( $obj->user_stack_frames , '==', 1,
           'explicit user_stack_frames setting to 1' );
 
   # Make sure selecting user_stack_frames outside the range dies
   dies_ok( sub {
-             $test->class_name->new( { execname => $test->{execname_attribute},
+             #$test->class_name->new( { execname => $test->{execname_attribute},
+             #                                 user_stack_frames => 0 } );
+             $test->class_name->new( { pids => [ $$ ],
                                        user_stack_frames => 0 } );
            },
            'below user_stack_frames range should die' );
   dies_ok( sub {
-             $test->class_name->new( { execname => $test->{execname_attribute},
+             #$test->class_name->new( { execname => $test->{execname_attribute},
+             #                          user_stack_frames => 101 } );
+             $test->class_name->new( { pids => [ $$ ],
                                        user_stack_frames => 101 } );
            },
            'above user_stack_frames range should die' );
@@ -139,7 +148,7 @@ sub test_default_dtrace_type {
 
   my ($obj);
 
-  $obj = $test->class_name->new( { pid => $$ } );
+  $obj = $test->class_name->new( { pids => [ $$ ] } );
 
   cmp_ok($obj->type, 'eq', "profile", "Default DTrace type is profile");
 }
