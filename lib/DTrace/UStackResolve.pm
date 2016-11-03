@@ -460,6 +460,14 @@ has 'symbol_table' => (
   predicate   => '_has_symbol_table',
 );
 
+has 'inode_cache' => (
+  init_arg    => undef,   # don't allow specifying in the constructor
+  is          => 'ro',
+  isa         => 'CHI',
+  builder     => '_build_inode_cache',
+  lazy        => 1,
+);
+
 has 'direct_symbol_cache' => (
   init_arg    => undef,   # don't allow specifying in the constructor
   is          => 'ro',
@@ -507,6 +515,23 @@ has 'autoflush_dtrace_output' => (
 # TODO ATTRIBUTES:
 # - autoflush of resolved stack output - to be used for scripts that produce
 #   output slowly
+
+sub _build_inode_cache {
+  my ($self) = shift;
+
+  my ($output_dir) = $self->output_dir;
+  confess "output_dir not set yet"
+    if not defined($output_dir);
+
+  CHI->new(
+            driver       => 'BerkeleyDB',
+            root_dir     => File::Spec->catfile( $output_dir, 'symbol_tables' ),
+            namespace    => 'inode',
+            global       => 0,
+            on_get_error => 'warn',
+            on_set_error => 'warn',
+           );
+}
 
 sub _build_symbol_table_cache {
   my ($self) = shift;
@@ -642,6 +667,7 @@ sub BUILD {
   $self->dynamic_library_paths;
   say "GENERATING SYMBOL TABLE";
   $self->symbol_table;
+  $self->inode_cache;
   $self->direct_lookup_cache;
   $self->type;
   $self->dtrace_template_contents;
@@ -793,17 +819,49 @@ sub _build_loop {
 sub _build_symbol_table {
   my ($self) = shift;
 
+  my ($inode_cache)         = $self->inode_cache;
   my ($symbol_table_cache)  = $self->symbol_table_cache;
   my (@absolute_file_paths) = @{$self->dynamic_library_paths};
   my ($gen_symtab_func)     = $self->gen_symtab_func;
   # a.out
   my ($execpath)            = $self->execname;
+  # Latest inodes for each filename
+  my (%current_inodes);
+
+  # Get the current inode for each file - this will change whenever the file
+  # itself is changed/updated.
+  foreach my $file (@absolute_file_paths, $execpath) {
+    $current_inodes{$file} = (stat($file))[1];
+  }
+
+  # Remove entries in the cache, if they exist, that no longer match
+  # the original file inode the symtab was generated from
+  foreach my $file_key (@absolute_file_paths, $execpath) {
+    if ($symbol_table_cache->is_valid($file_key)) {
+      # If the inode cache key for this file doesn't exist, remove it from the
+      # symbol table cache, so the inode cache key *will* be generated
+      if (not $inode_cache->is_valid($file_key)) {
+        say "REMOVING SYMBOL TABLE CACHE BECAUSE NO INODE FOR: $file_key";
+        $symbol_table_cache->remove($file_key);
+      } else {
+        # If the inode cache key for this file does exist, do a comparison to make
+        # sure it's still valid - remove if not
+        my ($old_inode) = $inode_cache->get($file_key);
+        my ($current_inode) = $current_inodes{$file_key};
+        if ($old_inode != $current_inode) {
+          say "OLD INODE: $old_inode, CURRENT INODE: $current_inode";
+          say "REMOVING SYMBOL TABLE CACHE FOR: $file_key";
+          $symbol_table_cache->remove($file_key);
+        }
+      }
+    }
+  }
 
   # Look for the symbol tables missing from the cache
   my @missing_symtab_cache_items =
     grep { not defined($symbol_table_cache->get($_)); }
-    $execpath,         # Don't forget to add the a.out path too
-    @absolute_file_paths;
+      $execpath,         # Don't forget to add the a.out path too
+      @absolute_file_paths;
 
   # Create the missing cache items
   my $symtabs_f = fmap {
@@ -819,12 +877,18 @@ sub _build_symbol_table {
 
   my %symtabs = $symtabs_f->get;
 
-  #say "SYMBOL TABLE KEYS:";
   foreach my $symtab_path (keys %symtabs) {
+    # Store the data in the symbol table cache
     unless (defined($symbol_table_cache
                     ->set($symtab_path,
                           $symtabs{$symtab_path}, '7 days'))) {
-      say "FAILED to store KEY basename($symtab_path) in CACHE!"
+      say "FAILED to store KEY $symtab_path in SYMBOL TABLE CACHE!"
+    }
+    # Store current inode in inode cache
+    unless (defined($inode_cache
+                    ->set($symtab_path,
+                          $current_inodes{$symtab_path}))) {
+      say "FAILED to store KEY $symtab_path in INODE CACHE!"
     }
   }
 
