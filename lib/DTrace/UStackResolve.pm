@@ -833,7 +833,8 @@ sub _build_symbol_table {
   # Get the current inode for each file - this will change whenever the file
   # itself is changed/updated.
   foreach my $file (@absolute_file_paths, $execpath) {
-    $current_inodes{$file} = (stat($file))[1];
+    my $stat_obj = stat($file);
+    $current_inodes{$file} = $stat_obj->ino;
     say "FOUND INODE [$current_inodes{$file}] for: $file";
   }
 
