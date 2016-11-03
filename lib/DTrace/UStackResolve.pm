@@ -486,18 +486,6 @@ has 'symbol_table_cache' => (
 );
 
 #
-# This should get built at the end of building/loading the symbol_table_cache
-# TODO: This will be eliminated, replaced by RedBlack_tree_cache
-#
-has 'direct_lookup_cache' => (
-  init_arg    => undef,   # don't allow specifying in the constructor
-  is          => 'rw',
-  isa         => 'HashRef[Tree::RB]',
-  builder     => '_build_direct_lookup_cache',
-  lazy        => 1,
-);
-
-#
 # The cache is built/reactivated on object creation - it is populated (if need
 # be) during the BUILD part of this object, *after* the inode and
 # symbol_table_cache have been fully populated
@@ -655,32 +643,6 @@ sub _populate_RedBlack_tree_cache {
 }
 
 
-sub _build_direct_lookup_cache {
-  my ($self) = shift;
-
-  my ($symbol_table_cache) = $self->symbol_table_cache;
-
-  say "CREATING RED-BLACK DIRECT LOOKUP SYMBOL TREE";
-  my %symtab_trees;
-  foreach my $key ($symbol_table_cache->get_keys) {
-    my $symtab_aref = $symbol_table_cache->get($key);
-    my $tree = Tree::RB->new();
-    foreach my $entry (@$symtab_aref) {
-      $tree->put( $entry->[$FUNCTION_START_ADDRESS], $entry );
-    }
-
-    # This key is the absolute path to the item
-    $symtab_trees{$key} = $tree;
-    my ($basename_key) = basename($key);
-    # And this is the "short" key, which will match what DTrace's unresolved
-    # address is usually prefixed with
-    #say "Adding 'short' key $basename_key";
-    $symtab_trees{$basename_key} = $tree;
-  }
-
-  return \%symtab_trees;
-}
-
 # TODO: Add a test for constructor called with execname only and pids only
 override BUILDARGS => sub {
   my $class = shift;
@@ -746,7 +708,6 @@ sub BUILD {
   say "GENERATING SYMBOL TABLE";
   $self->symbol_table;
   $self->inode_cache;
-  $self->direct_lookup_cache;
   $self->_populate_RedBlack_tree_cache;
   $self->type;
   $self->dtrace_template_contents;
@@ -1235,7 +1196,6 @@ sub _resolve_symbol {
   my $direct_symbol_cache = $self->direct_symbol_cache;
 
   my ($symtab);
-  #my (%symtab_trees) = %{$self->direct_lookup_cache};
   my (%symtab_trees) = %{$self->RedBlack_tree_cache->get('symtab_trees')};
 
   my $unresolved_re =
