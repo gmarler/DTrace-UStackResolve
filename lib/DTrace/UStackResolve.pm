@@ -309,7 +309,7 @@ has 'dscript_unresolved_out_fh' => (
       confess "output_dir not set yet"
         if not defined($output_dir);
 
-      my ($fh)   = File::Temp->new('DTrace-${dtrace_type}-UNRESOLVED-XXXX',
+      my ($fh)   = File::Temp->new("DTrace-${dtrace_type}-UNRESOLVED-XXXX",
                                     DIR    => $output_dir,
                                     UNLINK => 0,
                                    );
@@ -333,7 +333,7 @@ has 'dscript_err_fh' => (
       confess "output_dir not set yet"
         if not defined($output_dir);
 
-      my ($fh)   = File::Temp->new('DTrace-${dtrace_type}-UNRESOLVED-ERR-XXXX',
+      my ($fh)   = File::Temp->new("DTrace-${dtrace_type}-UNRESOLVED-ERR-XXXX",
                                     DIR    => $output_dir,
                                     UNLINK => 0,
                                    );
