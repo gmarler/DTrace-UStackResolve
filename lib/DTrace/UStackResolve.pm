@@ -597,11 +597,11 @@ sub _build_RedBlack_tree_cache {
             global       => 0,
             on_get_error => 'warn',
             on_set_error => 'warn',
-            #l1_cache     => { driver   => 'RawMemory',
-            #                  global   => 0,
-            #                  # This is in terms of items, not bytes!
-            #                  max_size => 128*1024,
-            #                }
+            l1_cache     => { driver   => 'RawMemory',
+                              global   => 0,
+                              # This is in terms of items, not bytes!
+                              max_size => 128*1024,
+                            }
            );
 }
 
