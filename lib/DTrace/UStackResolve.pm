@@ -950,6 +950,14 @@ sub _build_symbol_table {
       $execpath,         # Don't forget to add the a.out path too
       @absolute_file_paths;
 
+  # If any entries are missing from the symtab cache at all, at present, clear
+  # the entire RedBlack tree cache - this can be done per tree later, when we
+  # don't store the entire RedBlack tree cache under a single key
+  if (scalar(@missing_symtab_cache_items)) {
+    say "MUST CLEAR ENTIRE RED BLACK TREE CACHE";
+    $RedBlack_tree_cache->clear;
+  }
+
   # Create the missing cache items
   my $symtabs_f = fmap {
     my ($absolute_path) = shift;
