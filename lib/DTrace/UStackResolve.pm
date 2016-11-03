@@ -550,7 +550,8 @@ sub _build_symbol_table_cache {
             on_set_error => 'warn',
             l1_cache     => { driver   => 'RawMemory',
                               global   => 0,
-                              max_size => 8*1024*1024,
+                              # This is in terms of items, not bytes!
+                              max_size => 64*1024,
                             }
            );
 }
@@ -572,7 +573,8 @@ sub _build_direct_symbol_cache {
             on_set_error => 'warn',
             l1_cache     => { driver   => 'RawMemory',
                               global   => 0,
-                              max_size => 1*1024*1024,
+                              # This is in terms of items, not bytes!
+                              max_size => 8*1024,
                             }
            );
 }
