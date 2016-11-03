@@ -303,11 +303,14 @@ has 'dscript_unresolved_out_fh' => (
   default     =>
     sub {
       my ($self) = shift;
-      my ($output_dir) = $self->output_dir;
+      my ($output_dir)    = $self->output_dir;
+      my ($dtrace_type)   = $self->type;
+
       confess "output_dir not set yet"
         if not defined($output_dir);
-      my ($fh)   = File::Temp->new('DTrace-UNRESOLVED-XXXX',
-                                    DIR => $output_dir,
+
+      my ($fh)   = File::Temp->new('DTrace-${dtrace_type}-UNRESOLVED-XXXX',
+                                    DIR    => $output_dir,
                                     UNLINK => 0,
                                    );
       say "UNRESOLVED USTACK OUTPUT FILE: " . $fh->filename;
@@ -324,11 +327,14 @@ has 'dscript_err_fh' => (
   default     =>
     sub {
       my ($self) = shift;
-      my ($output_dir) = $self->output_dir;
+      my ($output_dir)    = $self->output_dir;
+      my ($dtrace_type)   = $self->type;
+
       confess "output_dir not set yet"
         if not defined($output_dir);
-      my ($fh)   = File::Temp->new('DTrace-UNRESOLVED-ERR-XXXX',
-                                    DIR => $output_dir,
+
+      my ($fh)   = File::Temp->new('DTrace-${dtrace_type}-UNRESOLVED-ERR-XXXX',
+                                    DIR    => $output_dir,
                                     UNLINK => 0,
                                    );
       return $fh;
@@ -351,13 +357,16 @@ sub _build_resolved_out_fh {
   # NOTE: Since we can have multiple PIDs, just take the first one
   #       Maybe later we can split these out, if we care, and produce
   #       an array of resolved output files to write into
-  my ($output_dir) = $self->output_dir;
+  my ($output_dir)    = $self->output_dir;
+  my ($dtrace_type)   = $self->type;
+
   confess "output_dir not set yet"
     if not defined($output_dir);
+
   my ($pid)            = $self->pids->[0];
   my ($execname)       = $self->personal_execname;
   my ($resolved_fname) = File::Spec->catfile( $output_dir,
-                                              "$execname-$pid.RESOLVED");
+                                              "$execname-${dtrace_type}.RESOLVED");
   my ($resolved_fh)    = IO::File->new("$resolved_fname", ">>") or
     die "Unable to open $resolved_fname for writing";
 
