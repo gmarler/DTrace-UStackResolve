@@ -835,7 +835,6 @@ sub _build_symbol_table {
   foreach my $file (@absolute_file_paths, $execpath) {
     my $stat_obj = stat($file);
     $current_inodes{$file} = $stat_obj->ino;
-    say "FOUND INODE [$current_inodes{$file}] for: $file";
   }
 
   # Remove entries in the cache, if they exist, that no longer match
@@ -889,7 +888,6 @@ sub _build_symbol_table {
       say "FAILED to store KEY in SYMBOL TABLE CACHE for: $symtab_path"
     }
     # Store current inode in inode cache
-    say "GOING TO STORE INODE $current_inodes{$symtab_path} FOR: $symtab_path";
     unless (defined($inode_cache
                     ->set($symtab_path,
                           $current_inodes{$symtab_path}))) {
