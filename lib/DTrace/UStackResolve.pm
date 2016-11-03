@@ -988,10 +988,10 @@ sub _start_dtrace_capture {
         prefork => sub {
           my ($parentfd, $childfd) = @_;
 
-          $parentfd->setsockopt(SOL_SOCKET, SO_RCVBUF, 7*1024*1024);
-          $parentfd->setsockopt(SOL_SOCKET, SO_SNDBUF, 7*1024*1024);
-          $childfd ->setsockopt(SOL_SOCKET, SO_RCVBUF, 7*1024*1024);
-          $childfd ->setsockopt(SOL_SOCKET, SO_SNDBUF, 7*1024*1024);
+          $parentfd->setsockopt(SOL_SOCKET, SO_RCVBUF, 25*1024*1024);
+          $parentfd->setsockopt(SOL_SOCKET, SO_SNDBUF, 25*1024*1024);
+          $childfd ->setsockopt(SOL_SOCKET, SO_RCVBUF, 25*1024*1024);
+          $childfd ->setsockopt(SOL_SOCKET, SO_SNDBUF, 25*1024*1024);
         },
         on_read => sub {
           my ( $stream, $buffref ) = @_;
@@ -1101,7 +1101,7 @@ sub _resolve_symbol {
                     $offset - $symtab_entry->[$FUNCTION_START_ADDRESS]);
           # If we got here, we have something to store in the direct symbol
           # lookup cache
-          $direct_symbol_cache->set($line,$resolved,'10 minutes');
+          $direct_symbol_cache->set($line,$resolved,'1 hour');
           $line =~ s/^(?<keyfile>[^:]+):0x(?<offset>[\da-fA-F]+)$/${resolved}/;
         } else {
           $line .= " [SYMBOL TABLE LOOKUP FAILED - POTENTIAL MATCH FAILED]";
