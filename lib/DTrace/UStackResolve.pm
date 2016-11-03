@@ -1227,7 +1227,8 @@ sub _resolve_symbol {
   my $direct_symbol_cache = $self->direct_symbol_cache;
 
   my ($symtab);
-  my (%symtab_trees) = %{$self->direct_lookup_cache};
+  #my (%symtab_trees) = %{$self->direct_lookup_cache};
+  my (%symtab_trees) = %{$self->RedBlack_tree_cache->get('symtab_trees')};
 
   my $unresolved_re =
     qr/^(?<keyfile>[^:]+):0x(?<offset>[\da-fA-F]+)/;
