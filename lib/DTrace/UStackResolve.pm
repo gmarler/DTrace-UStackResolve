@@ -487,12 +487,26 @@ has 'symbol_table_cache' => (
 
 #
 # This should get built at the end of building/loading the symbol_table_cache
+# TODO: This will be eliminated, replaced by RedBlack_tree_cache
 #
 has 'direct_lookup_cache' => (
   init_arg    => undef,   # don't allow specifying in the constructor
   is          => 'rw',
   isa         => 'HashRef[Tree::RB]',
   builder     => '_build_direct_lookup_cache',
+  lazy        => 1,
+);
+
+#
+# The cache is built/reactivated on object creation - it is populated (if need
+# be) during the BUILD part of this object, *after* the inode and
+# symbol_table_cache have been fully populated
+#
+has 'RedBlack_tree_cache' => (
+  init_arg    => undef,   # don't allow specifying in the constructor
+  is          => 'ro',
+  isa         => 'CHI',
+  builder     => '_build_RedBlack_tree_cache',
   lazy        => 1,
 );
 
@@ -578,6 +592,68 @@ sub _build_direct_symbol_cache {
                             }
            );
 }
+
+sub _build_RedBlack_tree_cache {
+  my ($self) = shift;
+
+  my ($output_dir) = $self->output_dir;
+  confess "output_dir not set yet"
+    if not defined($output_dir);
+
+  CHI->new(
+            driver       => 'BerkeleyDB',
+            # No size specified
+            # cache_size   => '8m',
+            root_dir     => File::Spec->catfile( $output_dir, 'symbol_tables' ),
+            namespace    => 'RedBlack_tree_symbol',
+            global       => 0,
+            on_get_error => 'warn',
+            on_set_error => 'warn',
+            l1_cache     => { driver   => 'RawMemory',
+                              global   => 0,
+                              # This is in terms of items, not bytes!
+                              max_size => 128*1024,
+                            }
+           );
+}
+
+sub _populate_RedBlack_tree_cache {
+  my ($self) = shift;
+
+  my ($symbol_table_cache)  = $self->symbol_table_cache;
+  my ($RedBlack_tree_cache) = $self->RedBlack_tree_cache;
+
+  # TODO: serialize each symbol table separately, each stored under the
+  #       basename of the absolute path
+  # TODO: Look for key duplicates of file basenames, as unlikely as they may
+  #       seem, to ensure we don't obliterate portions of symbol tables
+  if (not defined($RedBlack_tree_cache->is_valid('symtab_trees'))) {
+    say "POPULATING RED-BLACK TREES FROM SYMBOL TABLES";
+    my %symtab_trees;
+    foreach my $key ($symbol_table_cache->get_keys) {
+      my $symtab_aref = $symbol_table_cache->get($key);
+      my $tree = Tree::RB->new();
+      foreach my $entry (@$symtab_aref) {
+        $tree->put( $entry->[$FUNCTION_START_ADDRESS], $entry );
+      }
+
+      # This key is the absolute path to the item
+      $symtab_trees{$key} = $tree;
+      my ($basename_key) = basename($key);
+      # And this is the "short" key, which will match what DTrace's unresolved
+      # address is usually prefixed with
+      #say "Adding 'short' key $basename_key";
+      $symtab_trees{$basename_key} = $tree;
+    }
+
+    # We serialize the entire %symtab_trees directly into the cache under the key
+    # 'symtab_trees', for easy extraction later
+    $RedBlack_tree_cache->set('symtab_trees', \%symtab_trees);
+  } else {
+    say "RED BLACK TREE CACHE IS ALREADY POPULATED";
+  }
+}
+
 
 sub _build_direct_lookup_cache {
   my ($self) = shift;
@@ -671,6 +747,7 @@ sub BUILD {
   $self->symbol_table;
   $self->inode_cache;
   $self->direct_lookup_cache;
+  $self->_populate_RedBlack_tree_cache;
   $self->type;
   $self->dtrace_template_contents;
   say "GENERATE personal execname: " .
@@ -823,6 +900,7 @@ sub _build_symbol_table {
 
   my ($inode_cache)         = $self->inode_cache;
   my ($symbol_table_cache)  = $self->symbol_table_cache;
+  my ($RedBlack_tree_cache) = $self->RedBlack_tree_cache;
   my (@absolute_file_paths) = @{$self->dynamic_library_paths};
   my ($gen_symtab_func)     = $self->gen_symtab_func;
   # a.out
@@ -846,6 +924,9 @@ sub _build_symbol_table {
       if (not $inode_cache->is_valid($file_key)) {
         say "REMOVING SYMBOL TABLE CACHE BECAUSE NO INODE FOR: $file_key";
         $symbol_table_cache->remove($file_key);
+        # Also remove Red-Black Tree Cache entry - for now this is the entire
+        # cache
+        $RedBlack_tree_cache->clear;
       } else {
         # If the inode cache key for this file does exist, do a comparison to make
         # sure it's still valid - remove if not
@@ -855,6 +936,9 @@ sub _build_symbol_table {
           say "OLD INODE: $old_inode, CURRENT INODE: $current_inode";
           say "REMOVING SYMBOL TABLE CACHE FOR: $file_key";
           $symbol_table_cache->remove($file_key);
+          # Also remove Red-Black Tree Cache entry - for now this is the entire
+          # cache
+          $RedBlack_tree_cache->clear;
         }
       }
     }
@@ -887,7 +971,7 @@ sub _build_symbol_table {
                           $symtabs{$symtab_path}, '7 days'))) {
       say "FAILED to store KEY in SYMBOL TABLE CACHE for: $symtab_path"
     }
-    # Store current inode in inode cache
+    # Store current inode in inode cache, permanently (no expiration)
     unless (defined($inode_cache
                     ->set($symtab_path,
                           $current_inodes{$symtab_path}))) {
