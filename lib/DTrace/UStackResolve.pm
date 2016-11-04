@@ -512,6 +512,9 @@ has 'RedBlack_tree_cache' => (
 );
 
 #
+# DTrace pragma settings that can be customized
+#
+#
 # Allow user stack frame depth to be chosen, but default to 100, since
 # it's very likely we'll want the full user stack most of the time.
 #
