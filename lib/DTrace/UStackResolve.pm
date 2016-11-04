@@ -514,14 +514,48 @@ has 'RedBlack_tree_cache' => (
 #
 # DTrace pragma settings that can be customized
 #
-#
-# Allow user stack frame depth to be chosen, but default to 100, since
-# it's very likely we'll want the full user stack most of the time.
-#
 has 'user_stack_frames' => (
   is          => 'ro',
   isa         => 'UStackDepthRange',
+  # Allow user stack frame depth to be chosen, but default to 100, since
+  # it's very likely we'll want the full user stack most of the time.
   default     => 100,
+);
+
+has 'bufsize' => (
+  is          => 'ro',
+  isa         => 'Str',
+  default     => '8m',
+);
+
+has 'aggsize' => (
+  is          => 'ro',
+  isa         => 'Str',
+  default     => '6m',
+);
+
+has 'aggrate' => (
+  is          => 'ro',
+  isa         => 'Str',
+  default     => '223Hz',
+);
+
+has 'switchrate' => (
+  is          => 'ro',
+  isa         => 'Str',
+  default     => '239Hz',
+);
+
+has 'cleanrate' => (
+  is          => 'ro',
+  isa         => 'Str',
+  default     => '353Hz',
+);
+
+has 'dynvarsize' => (
+  is          => 'ro',
+  isa         => 'Str',
+  default     => '32m',
 );
 
 has 'autoflush_dtrace_output' => (
