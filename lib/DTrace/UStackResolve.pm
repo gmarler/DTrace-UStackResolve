@@ -135,7 +135,20 @@ class_has 'DTRACE' => (
   default     => "/sbin/dtrace",
 );
 
-# Real Attributes
+# Per Instance Attributes
+
+has 'datestamp' => (
+  # generate YYYYMMDD datestamp
+  init_arg    => undef,
+  is          => 'ro',
+  isa         => 'Str',
+  default     =>
+    sub {
+      use POSIX qw(strftime);
+      return strftime("%Y%02m%02d",localtime());
+    },
+  lazy        => 1,
+);
 
 has 'output_dir' => (
   is          => 'ro',
@@ -305,14 +318,16 @@ has 'dscript_unresolved_out_fh' => (
       my ($self) = shift;
       my ($output_dir)    = $self->output_dir;
       my ($dtrace_type)   = $self->type;
+      my ($datestamp)     = $self->datestamp;
 
       confess "output_dir not set yet"
         if not defined($output_dir);
 
-      my ($fh)   = File::Temp->new("DTrace-${dtrace_type}-UNRESOLVED-XXXX",
-                                    DIR    => $output_dir,
-                                    UNLINK => 0,
-                                   );
+      my ($fh)   =
+        File::Temp->new("DTrace-${dtrace_type}-UNRESOLVED-${datestamp}-XXXX",
+                        DIR    => $output_dir,
+                        UNLINK => 0,
+                       );
       say "UNRESOLVED USTACK OUTPUT FILE: " . $fh->filename;
       return $fh;
     },
@@ -329,14 +344,17 @@ has 'dscript_err_fh' => (
       my ($self) = shift;
       my ($output_dir)    = $self->output_dir;
       my ($dtrace_type)   = $self->type;
+      my ($datestamp)     = $self->datestamp;
 
       confess "output_dir not set yet"
         if not defined($output_dir);
 
-      my ($fh)   = File::Temp->new("DTrace-${dtrace_type}-UNRESOLVED-ERR-XXXX",
-                                    DIR    => $output_dir,
-                                    UNLINK => 0,
-                                   );
+      my ($fh) =
+        File::Temp->new(
+          "DTrace-${dtrace_type}-UNRESOLVED-ERR-${datestamp}-XXXX",
+          DIR    => $output_dir,
+          UNLINK => 0,
+        );
       return $fh;
     },
   lazy        => 1,
@@ -359,14 +377,16 @@ sub _build_resolved_out_fh {
   #       an array of resolved output files to write into
   my ($output_dir)    = $self->output_dir;
   my ($dtrace_type)   = $self->type;
+  my ($datestamp)     = $self->datestamp;
 
   confess "output_dir not set yet"
     if not defined($output_dir);
 
   my ($pid)            = $self->pids->[0];
   my ($execname)       = $self->personal_execname;
-  my ($resolved_fname) = File::Spec->catfile( $output_dir,
-                                              "$execname-${dtrace_type}.RESOLVED");
+  my ($resolved_fname) =
+    File::Spec->catfile( $output_dir,
+                         "$execname-${dtrace_type}.RESOLVED-${datestamp}");
   my ($resolved_fh)    = IO::File->new("$resolved_fname", ">>") or
     die "Unable to open $resolved_fname for writing";
 
@@ -736,6 +756,7 @@ sub BUILD {
 
   # Ensure we have an output dir do put things in
   $self->output_dir;
+  $self->datestamp;
   $self->_sanity_check_output_dir;
   #say "Building D Script Unresolved Output Filename: " .
   #  $self->dscript_unresolved_out;
