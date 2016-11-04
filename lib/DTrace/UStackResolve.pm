@@ -670,7 +670,7 @@ sub _populate_RedBlack_tree_cache {
     my $symtab_aref = $symbol_table_cache->get($key);
     my $tree = Tree::RB->new();
     foreach my $entry (@$symtab_aref) {
-      $tree->put( $entry->[$FUNCTION_START_ADDRESS], $entry );
+      $tree->set( $entry->[$FUNCTION_START_ADDRESS], $entry );
     }
     # And this is the "short" key, which will match what DTrace's unresolved
     # address is usually prefixed with
@@ -680,7 +680,7 @@ sub _populate_RedBlack_tree_cache {
     if (exists($inserted_basenames{$basename_key})) {
       say "WARNING: Looks like we're inserting a duplicate of: $basename_key";
     }
-    $RedBlack_tree_cache->put($basename_key) = $tree;
+    $RedBlack_tree_cache->set($basename_key) = $tree;
     $inserted_basenames{$basename_key}++;
   }
   $self->clear_symbol_table_cache;
