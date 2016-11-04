@@ -670,7 +670,7 @@ sub _populate_RedBlack_tree_cache {
     my $symtab_aref = $symbol_table_cache->get($key);
     my $tree = Tree::RB->new();
     foreach my $entry (@$symtab_aref) {
-      $tree->set( $entry->[$FUNCTION_START_ADDRESS], $entry );
+      $tree->put( $entry->[$FUNCTION_START_ADDRESS], $entry );
     }
     # And this is the "short" key, which will match what DTrace's unresolved
     # address is usually prefixed with
