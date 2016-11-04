@@ -1076,15 +1076,31 @@ This method takes a DTrace script, and replaces the keywords we recognize.
 sub _replace_DTrace_keywords {
   my ($self,$script) = @_;
 
-  my ($execname,$ustack_frames) =
-    ($self->personal_execname, $self->user_stack_frames);
+  my ($execname,$ustack_frames,$bufsize,$aggsize,$aggrate,$switchrate,
+      $cleanrate,$dynvarsize) =
+    ($self->personal_execname, $self->user_stack_frames, $self->bufsize,
+     $self->aggsize, $self->aggrate, $self->switchrate, $self->cleanrate,
+     $self->dynvarsize);
+
   my ($pids_aref, $tid) =
     ($self->pids, $self->tid);
 
   say "REPLACING __EXECNAME__ with $execname";
-  say "REPLACING __USTACK_FRAMES__ with $ustack_frames";
   $script =~ s/__EXECNAME__/$execname/gsmx;
+  say "REPLACING __USTACK_FRAMES__ with $ustack_frames";
   $script =~ s/__USTACK_FRAMES__/$ustack_frames/gsmx;
+  say "REPLACING __BUFSIZE__ with $bufsize";
+  $script =~ s/__BUFSIZE__/$bufsize/gsmx;
+  say "REPLACING __AGGSIZE__ with $aggsize";
+  $script =~ s/__AGGSIZE__/$aggsize/gsmx;
+  say "REPLACING __AGGRATE__ with $aggrate";
+  $script =~ s/__AGGRATE__/$aggrate/gsmx;
+  say "REPLACING __SWITCHRATE__ with $switchrate";
+  $script =~ s/__SWITCHRATE__/$switchrate/gsmx;
+  say "REPLACING __CLEANRATE__ with $cleanrate";
+  $script =~ s/__CLEANRATE__/$cleanrate/gsmx;
+  say "REPLACING __DYNVARSIZE__ with $dynvarsize";
+  $script =~ s/__DYNVARSIZE__/$dynvarsize/gsmx;
 
   my (@pidlist_snippets, $pidlist_snippet);
 
