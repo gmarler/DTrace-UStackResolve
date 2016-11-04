@@ -687,6 +687,7 @@ sub _populate_RedBlack_tree_cache {
     # We serialize the entire %symtab_trees directly into the cache under the key
     # 'symtab_trees', for easy extraction later
     $RedBlack_tree_cache->set('symtab_trees', \%symtab_trees);
+    $self->clear_symbol_table_cache;
   } else {
     say "RED BLACK TREE CACHE IS ALREADY POPULATED";
   }
