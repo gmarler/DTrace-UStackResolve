@@ -1314,7 +1314,7 @@ sub _resolve_symbol {
     my ($keyfile, $offset) = ($+{keyfile}, hex( $+{offset} ) );
 
     # NOTE: This is looking things up by the short basename of the library
-    if ( defined( my $search_tree = $symtab_trees{$keyfile} ) ) {
+    if ( defined( my $search_tree = $self->RedBlack_tree_cache->get($keyfile) ) ) {
       my $symtab_entry = $search_tree->lookup( $offset, LULTEQ );
       if (defined($symtab_entry)) {
         if (($offset >= $symtab_entry->[$FUNCTION_START_ADDRESS] ) and
