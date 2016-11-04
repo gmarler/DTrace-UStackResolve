@@ -680,7 +680,7 @@ sub _populate_RedBlack_tree_cache {
     if (exists($inserted_basenames{$basename_key})) {
       say "WARNING: Looks like we're inserting a duplicate of: $basename_key";
     }
-    $RedBlack_tree_cache->set($basename_key) = $tree;
+    $RedBlack_tree_cache->set($basename_key,$tree,'7 days');
     $inserted_basenames{$basename_key}++;
   }
   $self->clear_symbol_table_cache;
