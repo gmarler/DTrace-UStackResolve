@@ -920,6 +920,20 @@ sub _build_symbol_table {
     $current_inodes{$file} = $stat_obj->ino;
   }
 
+  # Remove entries from this cache for absolute path names that no longer
+  # exist
+  foreach my $key ($symbol_table_cache->get_keys) {
+    unless (-f $key) {
+      say "REMOVING FROM CACHES DUE TO NO LONGER EXISTING: $key";
+      $symbol_table_cache->remove($key);
+      # ... and from the Red Black Tree cache, if the basename for it exists there
+      my ($basename_key) = basename($key);
+      if ($RedBlack_tree_cache->is_valid($basename_key)) {
+        $RedBlack_tree_cache->remove($basename_key);
+      }
+    }
+  }
+
   # Remove entries in the cache, if they exist, that no longer match
   # the original file inode the symtab was generated from
   foreach my $file_key (@absolute_file_paths, $execpath) {
