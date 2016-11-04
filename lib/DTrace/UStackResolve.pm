@@ -1256,8 +1256,9 @@ sub _resolve_symbol {
 
   my $direct_symbol_cache = $self->direct_symbol_cache;
 
-  my ($symtab);
-  my (%symtab_trees) = %{$self->RedBlack_tree_cache->get('symtab_trees')};
+  my (@RB_keys) = $self->RedBlack_tree_cache->get_keys;
+  my (%symtab_trees) =
+    %{$self->RedBlack_tree_cache->get_multi_hashref(@RB_keys)};
 
   my $unresolved_re =
     qr/^(?<keyfile>[^:]+):0x(?<offset>[\da-fA-F]+)/;
