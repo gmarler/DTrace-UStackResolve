@@ -930,8 +930,9 @@ sub _build_symbol_table {
         say "REMOVING SYMBOL TABLE CACHE BECAUSE NO INODE FOR: $file_key";
         $symbol_table_cache->remove($file_key);
         # Also remove Red-Black Tree Cache entry
-        if ($RedBlack_tree_cache->is_valid($file_key)) {
-          $RedBlack_tree_cache->remove($file_key);
+        my ($basename_file_key) = basename($file_key);
+        if ($RedBlack_tree_cache->is_valid($basename_file_key)) {
+          $RedBlack_tree_cache->remove($basename_file_key);
         }
       } else {
         # If the inode cache key for this file does exist, do a comparison to make
@@ -942,9 +943,11 @@ sub _build_symbol_table {
           say "OLD INODE: $old_inode, CURRENT INODE: $current_inode";
           say "REMOVING SYMBOL TABLE CACHE FOR: $file_key";
           $symbol_table_cache->remove($file_key);
-          # Also remove Red-Black Tree Cache entry - for now this is the entire
-          # cache
-          $RedBlack_tree_cache->clear;
+          # Also remove Red-Black Tree Cache entry
+          my ($basename_file_key) = basename($file_key);
+          if ($RedBlack_tree_cache->is_valid($basename_file_key)) {
+            $RedBlack_tree_cache->remove($basename_file_key);
+          }
         }
       }
     }
@@ -956,12 +959,16 @@ sub _build_symbol_table {
       $execpath,         # Don't forget to add the a.out path too
       @absolute_file_paths;
 
-  # If any entries are missing from the symtab cache at all, at present, clear
-  # the entire RedBlack tree cache - this can be done per tree later, when we
-  # don't store the entire RedBlack tree cache under a single key
+  # If any entries are missing from the symtab cache, clear the same entries
+  # (but by their basenames, rather than their absolute path names) from
+  # the RedBlack tree cache
   if (scalar(@missing_symtab_cache_items)) {
-    say "MUST CLEAR ENTIRE RED BLACK TREE CACHE";
-    $RedBlack_tree_cache->clear;
+    foreach my $absolute_path (@missing_symtab_cache_items) {
+      my ($basename_path) = basename($absolute_path);
+      if ($RedBlack_tree_cache->is_valid($basename_path)) {
+        say "CLEARING RED BLACK TREE CACHE ENTRY FOR: $basename_path";
+      }
+    }
   }
 
   # Create the missing cache items
