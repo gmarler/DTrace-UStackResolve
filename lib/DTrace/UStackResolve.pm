@@ -683,7 +683,8 @@ sub _populate_RedBlack_tree_cache {
     $RedBlack_tree_cache->set($basename_key,$tree,'7 days');
     $inserted_basenames{$basename_key}++;
   }
-  $self->clear_symbol_table_cache;
+  # This seems to make accessing the RB Tree later *much* slower
+  #$self->clear_symbol_table_cache;
 }
 
 
