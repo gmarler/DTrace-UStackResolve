@@ -474,6 +474,7 @@ has 'inode_cache' => (
   is          => 'ro',
   isa         => 'CHI',
   builder     => '_build_inode_cache',
+  clearer     => 'clear_inode_cache',
   lazy        => 1,
 );
 
@@ -482,6 +483,7 @@ has 'direct_symbol_cache' => (
   is          => 'ro',
   isa         => 'CHI',
   builder     => '_build_direct_symbol_cache',
+  clearer     => 'clear_direct_symbol_cache',
   lazy        => 1,
 );
 
@@ -491,6 +493,7 @@ has 'symbol_table_cache' => (
   is          => 'ro',
   isa         => 'CHI',
   builder     => '_build_symbol_table_cache',
+  clearer     => 'clear_symbol_table_cache',
   lazy        => 1,
 );
 
@@ -504,6 +507,7 @@ has 'RedBlack_tree_cache' => (
   is          => 'ro',
   isa         => 'CHI',
   builder     => '_build_RedBlack_tree_cache',
+  clearer     => 'clear_RedBlack_tree_cache',
   lazy        => 1,
 );
 
