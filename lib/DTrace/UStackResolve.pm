@@ -1295,13 +1295,7 @@ If there is no symbol to be resolve, return the line unchanged.
 =cut
 
 sub _resolve_symbol {
-  my ($self,$line,$pid) = @_;
-
-  my $direct_symbol_cache = $self->direct_symbol_cache;
-
-  my ($RB_keys_aref) = [ $self->RedBlack_tree_cache->get_keys ];
-  my (%symtab_trees) =
-    %{$self->RedBlack_tree_cache->get_multi_hashref($RB_keys_aref)};
+  my ($self,$direct_symbol_cache,$symtab_trees_href,$line,$pid) = @_;
 
   my $unresolved_re =
     qr/^(?<keyfile>[^:]+):0x(?<offset>[\da-fA-F]+)/;
@@ -1314,7 +1308,7 @@ sub _resolve_symbol {
     my ($keyfile, $offset) = ($+{keyfile}, hex( $+{offset} ) );
 
     # NOTE: This is looking things up by the short basename of the library
-    if ( defined( my $search_tree = $self->RedBlack_tree_cache->get($keyfile) ) ) {
+    if ( defined( my $search_tree = $symtab_trees_href->{$keyfile} ) ) {
       my $symtab_entry = $search_tree->lookup( $offset, LULTEQ );
       if (defined($symtab_entry)) {
         if (($offset >= $symtab_entry->[$FUNCTION_START_ADDRESS] ) and
@@ -1326,7 +1320,7 @@ sub _resolve_symbol {
                     $offset - $symtab_entry->[$FUNCTION_START_ADDRESS]);
           # If we got here, we have something to store in the direct symbol
           # lookup cache
-          $direct_symbol_cache->set($line,$resolved,'1 hour');
+          $direct_symbol_cache->set($line,$resolved,'1 day');
           $line =~ s/^(?<keyfile>[^:]+):0x(?<offset>[\da-fA-F]+)$/${resolved}/;
         } else {
           $line .= " [SYMBOL TABLE LOOKUP FAILED - POTENTIAL MATCH FAILED]";
@@ -1360,7 +1354,17 @@ sub start_stack_resolve {
   my ($unresolved_out) = $self->dscript_unresolved_out_fh->filename;
   my ($resolved_fh)    = $self->resolved_out_fh;
   my ($loop)           = $self->loop;
-
+  # Get a copy of the hashref containing the RB Trees for each symtab
+  my ($RB_keys_aref) = [ $self->RedBlack_tree_cache->get_keys ];
+  say "RB_keys_aref are: \n" . join("\n", @$RB_keys_aref);
+  my $symtab_trees_href =
+    $self->RedBlack_tree_cache->get_multi_hashref($RB_keys_aref);
+  # Get a copy of the Direct Symbol Lookup table
+  my $direct_symbol_cache = $self->direct_symbol_cache;
+  # TODO: Read a "chunk of data (MUST contain *ONLY* full lines, no partials)
+  #       and pass this over a Channel to worker processes to actually do
+  #       the lookups, then get those to pass the resolved lines back over
+  #       another Channel to be written out to the resolved file
   my $dtrace_unresolved_fh  = IO::File->new($unresolved_out, "<");
 
   # TODO: May want to think about changing this from a FileStream to just a
@@ -1396,7 +1400,9 @@ sub start_stack_resolve {
           $resolved_fh->print( "$line\n" );
           next;
         }
-        $line = $obj->_resolve_symbol( $line, $current_pid );
+        $line = $obj->_resolve_symbol( $direct_symbol_cache,
+                                       $symtab_trees_href,
+                                       $line, $current_pid );
         $resolved_fh->print( "$line\n" );
       }
 
