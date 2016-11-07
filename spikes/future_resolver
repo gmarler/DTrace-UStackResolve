@@ -36,7 +36,7 @@ my $filestream = IO::Async::Stream->new(
     # symbol table lookup
     my ($current_pid);
 
-    while ( $$buffref =~ s/((?:^[^\n]+?\n){1,50})//smx ) {
+    while ( $$buffref =~ s/( (?: ^[^\n]+? \n) {1,50} )//smx ) {
       my $lines = $1;
 
       #if ($line =~ m/^PID:(?<pid>\d+)/) {
