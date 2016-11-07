@@ -36,6 +36,7 @@ my $filestream = IO::Async::Stream->new(
     # symbol table lookup
     my ($current_pid);
 
+    # Read 1 to 50 lines at a time, as available
     while ( $$buffref =~ s/( (?: ^[^\n]+? \n) {1,50} )//smx ) {
       my $lines = $1;
 
