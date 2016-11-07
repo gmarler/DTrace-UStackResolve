@@ -4,6 +4,10 @@ use strict;
 use warnings;
 use v5.22;
 
+use IO::Async;
+use IO::Async::Loop;
+use IO::Async::FileStream;
+use IO::Async::Stream;
 use CHI;
 use Tree::RB              qw( LULTEQ );
 use IO::File;
@@ -14,39 +18,95 @@ my $cache_root = '/tmp/symbol_tables';
 
 my $unresolved_file = '/tmp/DTrace-off-cpu-UNRESOLVED-20161107-CFvL';
 
-my $symtab_cache =
-  CHI->new(
-            driver       => 'BerkeleyDB',
-            cache_size   => '1024m',
-            root_dir     => File::Spec->catfile( $output_dir, 'symbol_tables' ),
-            namespace    => 'symbol_tables',
-            global       => 0,
-            on_get_error => 'warn',
-            on_set_error => 'warn',
-            l1_cache     => { driver   => 'RawMemory',
-                              global   => 0,
-                              # This is in terms of items, not bytes!
-                              max_size => 64*1024,
-                            }
-           );
 
-say "symtab cache keys:\n" . join "\n", $symtab_cache->get_keys();
+my $unresolved_fh  = IO::File->new($unresolved_file, "<");
 
-my $RB_cache =
-  CHI->new(
-            driver       => 'BerkeleyDB',
-            # No size specified
-            # cache_size   => '8m',
-            root_dir     => File::Spec->catfile( $output_dir, 'symbol_tables' ),
-            namespace    => 'RedBlack_tree_symbol',
-            global       => 0,
-            on_get_error => 'warn',
-            on_set_error => 'warn',
-            l1_cache     => { driver   => 'RawMemory',
-                              global   => 0,
-                              # This is in terms of items, not bytes!
-                              max_size => 128*1024,
-                            }
-           );
+my $loop = IO::Async::Loop->new;
 
-say "RB cache keys:\n" . join "\n", $RB_cache->get_keys();
+my $filestream = IO::Async::Stream->new(
+  read_handle => $unresolved_fh,
+  #on_initial => sub {
+  #  my ($self, $filesize) = @_;
+  #  $self->seek(0, SEEK_SET);
+  #},
+  on_read => sub {
+    my ( $self, $buffref, $eof ) = @_;
+    # as we read the file to resolve symbols in, we often need to know
+    # what the current PID is for the data which follows to do an accurate
+    # symbol table lookup
+    my ($current_pid);
+
+    while ( $$buffref =~ s/((?:^[^\n]+?\n){1,50})//smx ) {
+      my $lines = $1;
+
+      #if ($line =~ m/^PID:(?<pid>\d+)/) {
+      #  $current_pid = $+{pid};
+      #  # TODO: look this PID's entries up in at least the following
+      #  #       namespaces, generating them asynchronously if necessary:
+      #  # - ustack_resolve_pids
+      #  # - symbol_table
+      #  $resolved_fh->print( "$line\n" );
+      #  next;
+      #}
+      #$line = $obj->_resolve_symbol( $direct_symbol_cache,
+      #                               $symtab_trees_href,
+      #                               $line, $current_pid );
+      #$resolved_fh->print( "$line\n" );
+      say "YEP: $lines";
+    }
+
+    # This might not be the cleanest way to go about this...
+    if ($eof) {
+      #if ($obj->dtrace_has_exited) {
+      #  say "DTrace Script has exited, and read everything it produced - EXITING";
+      #  exit(0);
+      #}
+      say "EOF detected";
+      $loop->stop;
+    }
+
+    return 0;
+  },
+);
+
+$loop->add( $filestream );
+
+$loop->run;
+
+
+#my $symtab_cache =
+#  CHI->new(
+#            driver       => 'BerkeleyDB',
+#            cache_size   => '1024m',
+#            root_dir     => File::Spec->catfile( $output_dir, 'symbol_tables' ),
+#            namespace    => 'symbol_tables',
+#            global       => 0,
+#            on_get_error => 'warn',
+#            on_set_error => 'warn',
+#            l1_cache     => { driver   => 'RawMemory',
+#                              global   => 0,
+#                              # This is in terms of items, not bytes!
+#                              max_size => 64*1024,
+#                            }
+#           );
+#
+#say "symtab cache keys:\n" . join "\n", $symtab_cache->get_keys();
+#
+#my $RB_cache =
+#  CHI->new(
+#            driver       => 'BerkeleyDB',
+#            # No size specified
+#            # cache_size   => '8m',
+#            root_dir     => File::Spec->catfile( $output_dir, 'symbol_tables' ),
+#            namespace    => 'RedBlack_tree_symbol',
+#            global       => 0,
+#            on_get_error => 'warn',
+#            on_set_error => 'warn',
+#            l1_cache     => { driver   => 'RawMemory',
+#                              global   => 0,
+#                              # This is in terms of items, not bytes!
+#                              max_size => 128*1024,
+#                            }
+#           );
+#
+#say "RB cache keys:\n" . join "\n", $RB_cache->get_keys();
