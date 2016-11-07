@@ -615,17 +615,17 @@ sub _build_symbol_table_cache {
 
   CHI->new(
             driver       => 'BerkeleyDB',
-            cache_size   => '1024m',
+            cache_size   => '512m',
             root_dir     => File::Spec->catfile( $output_dir, 'symbol_tables' ),
             namespace    => 'symbol_tables',
             global       => 0,
             on_get_error => 'warn',
             on_set_error => 'warn',
-            #l1_cache     => { driver   => 'RawMemory',
-            #                  global   => 0,
-            #                  # This is in terms of items, not bytes!
-            #                  max_size => 64*1024,
-            #                }
+            l1_cache     => { driver   => 'RawMemory',
+                              global   => 0,
+                              # This is in terms of items, not bytes!
+                              max_size => 64*1024,
+                            }
            );
 }
 
