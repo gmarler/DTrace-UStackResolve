@@ -1356,7 +1356,6 @@ sub start_stack_resolve {
   my ($loop)           = $self->loop;
   # Get a copy of the hashref containing the RB Trees for each symtab
   my ($RB_keys_aref) = [ $self->RedBlack_tree_cache->get_keys ];
-  say "RB_keys_aref are: \n" . join("\n", @$RB_keys_aref);
   my $symtab_trees_href =
     $self->RedBlack_tree_cache->get_multi_hashref($RB_keys_aref);
   # Get a copy of the Direct Symbol Lookup table
