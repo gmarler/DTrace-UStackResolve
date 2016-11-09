@@ -1,0 +1,70 @@
+#!/usr/perl5/5.22.0/bin/perl
+
+use strict;
+use warnings;
+use v5.22;
+
+use CHI;
+use Tree::RB              qw( LULTEQ );
+use IO::File;
+
+my $output_dir = '/tmp';
+my $cache_root = '/tmp/symbol_tables';
+
+my $RB_cache =
+  CHI->new(
+            driver       => 'BerkeleyDB',
+            # No size specified
+            # cache_size   => '8m',
+            root_dir     => File::Spec->catfile( $output_dir, 'symbol_tables' ),
+            namespace    => 'RedBlack_tree_symbol',
+            global       => 0,
+            on_get_error => 'warn',
+            on_set_error => 'warn',
+            l1_cache     => { driver   => 'RawMemory',
+                              global   => 0,
+                              # This is in terms of items, not bytes!
+                              max_size => 128*1024,
+                            }
+           );
+
+
+my ($RB_keys_aref) = [ $RB_cache->get_keys ];
+my $symtab_trees_href =
+  $RB_cache->get_multi_hashref($RB_keys_aref);
+
+my $RB_cache_shared =
+  CHI->new(
+            driver       => 'SharedMem',
+            size         => 128 * 1024 * 1024,
+            shmkey       => 12344322,
+            namespace    => 'RedBlack_tree_symbol',
+            global       => 0,
+            on_get_error => 'warn',
+            on_set_error => 'warn',
+           );
+
+foreach my $key (@$RB_keys_aref) {
+  $RB_cache_shared->set($key,$symtab_trees_href->{$key});
+}
+
+#my $symtab_cache =
+#  CHI->new(
+#            driver       => 'BerkeleyDB',
+#            cache_size   => '1024m',
+#            root_dir     => File::Spec->catfile( $output_dir, 'symbol_tables' ),
+#            namespace    => 'symbol_tables',
+#            global       => 0,
+#            on_get_error => 'warn',
+#            on_set_error => 'warn',
+#            l1_cache     => { driver   => 'RawMemory',
+#                              global   => 0,
+#                              # This is in terms of items, not bytes!
+#                              max_size => 64*1024,
+#                            }
+#           );
+#
+#say "symtab cache keys:\n" . join "\n", $symtab_cache->get_keys();
+#
+
+#say "RB cache keys:\n" . join "\n", $RB_cache->get_keys();
