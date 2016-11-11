@@ -794,8 +794,7 @@ sub BUILD {
   $self->dscript_unresolved_out_fh;
   $self->dscript_err_fh;
   $self->resolved_out_fh;
-  # TODO:
-  # - Define the filename for the resolved ustacks to be written to
+  #
   $self->_start_dtrace_capture;
   $self->start_stack_resolve;
 }
@@ -943,7 +942,6 @@ sub _build_loop {
 # TODO: Turn this from a normal builder into a Future
 # TODO: Change key from basename to absolute path; store basename as another key
 #       or find another unique identifier
-# TODO: Make sure to do a.out as well as dynamic libs
 sub _build_symbol_table {
   my ($self) = shift;
 
@@ -1524,17 +1522,10 @@ sub _gen_symbol_table {
   # $start_offset is the offset of the _START_ symbol in a library or exec
   my ($symtab_aref,$symcount,$_start_offset);
 
-  # TODO: Check whether data is in cache; return immediately if it is
-
-  #say "Building symtab for $exec_or_lib_path";
-
-  # TODO: Don't call extract_symtab directly - call it through...
   my $elf_type = __PACKAGE__->_elf_type($exec_or_lib_path);
   if ($elf_type eq "ET_EXEC") {
-    #say "$exec_or_lib_path is an a.out (executable)";
     $symtab_aref = __PACKAGE__->_exec_symbol_tuples($exec_or_lib_path);
   } elsif ($elf_type eq "ET_DYN") {
-    #say "$exec_or_lib_path is a dynamic library";
     $symtab_aref = __PACKAGE__->_dyn_symbol_tuples($exec_or_lib_path);
   } else {
     say "[$exec_or_lib_path] is ELF Type $elf_type: SKIPPING";
@@ -1621,15 +1612,12 @@ sub _get_exec_load_address {
     say "UNABLE TO FIND FIRST PT_LOAD PROGRAM HEADER";
     return; # undef
   }
-  # TODO: Confirm we don't need Math::BigInt here
-  #my $load_address = Math::BigInt->new($+{load_address_in_hex});
   my $hex_load_address = $+{load_address_in_hex};
+  # Note that we use Math::BigInt here to avoid warnings
   my $load_address     = Math::BigInt->from_hex($hex_load_address)->numify;
 
   say "LOAD ADDRESS (hex): " . $hex_load_address;
   say "LOAD ADDRESS (dec): " . $load_address;
-  # ->as_hex() specific to Math::BigInt
-  # say "LOAD ADDRESS (hex): " . $load_address->as_hex();
   return $load_address;
 }
 
@@ -1647,13 +1635,6 @@ sub _dyn_symbol_tuples {
   # addresses of these per PID.  Yahoo!
 
   # Extract symbol table
-  # TODO: fix extract_symtab so it can accept an object or __PACKAGE__ (class)
-  #       name
-  # At present, we can't do this through libproc (extract_symtab), as it can
-  # only operate on executables or entire PIDs.
-  # So for the short term, we're using the old nm method.
-  #my $function_tuples = DTrace::UStackResolve::extract_symtab($file);
-
   # TODO: May want to call these in parallel via an IO::Async Function
   my $function_tuples = DTrace::UStackResolve::extract_symtab($file);
 
