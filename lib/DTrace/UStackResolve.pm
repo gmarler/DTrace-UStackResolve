@@ -691,24 +691,34 @@ sub _populate_RedBlack_tree_cache {
   # basename of the absolute path
   say "POPULATING RED-BLACK TREES FROM SYMBOL TABLES";
   foreach my $key ($symbol_table_cache->get_keys) {
-    say "BUILDING RED BLACK TREE FOR: $key";
-    my $symtab_aref = $symbol_table_cache->get($key);
-    my $tree = Tree::RB->new();
-    foreach my $entry (@$symtab_aref) {
-      $tree->put( $entry->[$FUNCTION_START_ADDRESS], $entry );
-    }
-    # And this is the "short" key, which will match what DTrace's unresolved
+    # This is the "short" key, which will match what DTrace's unresolved
     # address is usually prefixed with
     my ($basename_key) = basename($key);
-    # Look for key duplicates of file basenames, as unlikely as they may
-    # seem, to ensure we don't obliterate portions of symbol tables
-    if (exists($inserted_basenames{$basename_key})) {
-      say "WARNING: Looks like we're inserting a duplicate of: $basename_key";
+    # At this point in building the object, if the key doesn't exist in the RB
+    # Tree cache, it was removed and should be generated.  If it does exist,
+    # it's very likely still valid and should be skipped.
+    if ($RedBlack_tree_cache->is_valid($basename_key)) {
+      say "RED BLACK TREE CACHE ENTRY ALREADY VALID FOR: $key";
+      next;
+    } else {
+      say "BUILDING RED BLACK TREE FOR: $key";
+      my $symtab_aref = $symbol_table_cache->get($key);
+      my $tree = Tree::RB->new();
+      foreach my $entry (@$symtab_aref) {
+        $tree->put( $entry->[$FUNCTION_START_ADDRESS], $entry );
+      }
+      # Look for key duplicates of file basenames, as unlikely as they may
+      # seem, to ensure we don't obliterate portions of symbol tables
+      if (exists($inserted_basenames{$basename_key})) {
+        say "WARNING: Looks like we're inserting a duplicate of: $basename_key";
+      }
+      $RedBlack_tree_cache->set($basename_key,$tree,'7 days');
+      $inserted_basenames{$basename_key}++;
     }
-    $RedBlack_tree_cache->set($basename_key,$tree,'7 days');
-    $inserted_basenames{$basename_key}++;
   }
-  # This seems to make accessing the RB Tree later *much* slower
+  # TODO: This seems to make accessing the RB Tree later *much* slower
+  #       Might have been related to eliminating the L1 cache temporarily
+  #       Try again.
   #$self->clear_symbol_table_cache;
 }
 
@@ -958,7 +968,7 @@ sub _build_symbol_table {
   # Get the current inode for each file - this will change whenever the file
   # itself is changed/updated.
   foreach my $file (@absolute_file_paths, $execpath) {
-    my $stat_obj = stat($file);
+    my $stat_obj = File::stat::stat($file);
     $current_inodes{$file} = $stat_obj->ino;
   }
 
@@ -993,7 +1003,7 @@ sub _build_symbol_table {
       } else {
         # If the inode cache key for this file does exist, do a comparison to make
         # sure it's still valid - remove if not
-        my ($old_inode) = $inode_cache->get($file_key);
+        my ($old_inode)     = $inode_cache->get($file_key);
         my ($current_inode) = $current_inodes{$file_key};
         if ($old_inode != $current_inode) {
           say "OLD INODE: $old_inode, CURRENT INODE: $current_inode";
