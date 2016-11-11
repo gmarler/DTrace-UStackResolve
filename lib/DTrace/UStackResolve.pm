@@ -1395,13 +1395,13 @@ sub start_stack_resolve {
   #       debugging in the case where a stack resolution fails.
   my $filestream = IO::Async::FileStream->new(
     read_handle => $dtrace_unresolved_fh,
-    on_initial => sub {
-      my ( $self ) = @_;
-      say "FileStream on_initial self type: " . ref( $self );
+    #on_initial => sub {
+    #  my ( $self ) = @_;
+    #  say "FileStream on_initial self type: " . ref( $self );
     #  #$self->seek_to_last( "\n" );
     #  # Start at beginning of file
     #  $self->seek( 0 );
-    },
+    #},
 
     on_read => sub {
       my ( $self, $buffref, $eof ) = @_;
