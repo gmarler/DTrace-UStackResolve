@@ -52,8 +52,8 @@ our %dtrace_types = (
   "off-cpu_tid"     => "whatfor_pid_tid.d",
 );
 
-# NOTE: For use by IO::Async::Function resolver
-our ($symtab_trees_href, $direct_symbol_cache);
+# NOTE: For use by IO::Async::Function resolver workers
+my ($worker_symtab_trees_href, $worker_direct_symbol_cache, $obj);
 
 #
 # TODO: This module assumes use of a Perl with 64-bit ints.  Check for this, or
@@ -758,6 +758,9 @@ override BUILDARGS => sub {
 sub BUILD {
   my ($self) = shift;
 
+  # make $obj available for output_dir contents in _init_cache initialization of
+  # IO::Async::Function for all worker threads
+  $obj = $self; 
   # Ensure we have an output dir do put things in
   $self->output_dir;
   $self->datestamp;
@@ -1372,22 +1375,19 @@ STDOUT.
 sub start_stack_resolve {
   my ($self) = shift;
 
-  my ($obj) = $self; # for use in IO::Async::FileStream callback below
+  $obj = $self; # for use in IO::Async::FileStream callback below
   my ($unresolved_out) = $self->dscript_unresolved_out_fh->filename;
   my ($resolved_fh)    = $self->resolved_out_fh;
   my ($loop)           = $self->loop;
   my ($resolver_func)  = $self->resolver_func;
-  my ($max_buf_pulled);  # max length of buffer pulled off of file
-  # Get a copy of the hashref containing the RB Trees for each symtab
-  my ($RB_keys_aref) = [ $self->RedBlack_tree_cache->get_keys ];
-  my $symtab_trees_href =
-    $self->RedBlack_tree_cache->get_multi_hashref($RB_keys_aref);
-  # Get a copy of the Direct Symbol Lookup table
-  my $direct_symbol_cache = $self->direct_symbol_cache;
-  # TODO: Read a "chunk of data (MUST contain *ONLY* full lines, no partials)
-  #       and pass this over a Channel to worker processes to actually do
-  #       the lookups, then get those to pass the resolved lines back over
-  #       another Channel to be written out to the resolved file
+  my ($max_buf_pulled) = 0;  # max length of buffer pulled off of file
+
+  # Read a "chunk of data (MUST contain *ONLY* full lines, no partials)
+  # and pass this over a Channel to worker processes to actually do
+  # the lookups, then get those to pass the resolved lines back over
+  # another Channel to be written out to the resolved file.
+  #
+  # This above is all done via an IO::Async::Function automatically
   my $dtrace_unresolved_fh  = IO::File->new($unresolved_out, "<");
 
   # TODO: May want to think about changing this from a FileStream to just a
@@ -1397,12 +1397,13 @@ sub start_stack_resolve {
     read_handle => $dtrace_unresolved_fh,
     # TODO: Eliminate autoflush
     autoflush   => $self->autoflush_dtrace_output,
-    #on_initial => sub {
-    #  my ( $self ) = @_;
+    on_initial => sub {
+      my ( $self ) = @_;
+      say "FileStream on_initial self type: " . ref( $self );
     #  #$self->seek_to_last( "\n" );
     #  # Start at beginning of file
     #  $self->seek( 0 );
-    #},
+    },
 
     on_read => sub {
       my ( $self, $buffref, $eof ) = @_;
@@ -1410,7 +1411,8 @@ sub start_stack_resolve {
       #while ( $$buffref =~ s/^(.*)\n// ) {
       while ( $$buffref =~ s/(.+\n)//smx ) {
         $max_buf_pulled = (length($1) > $max_buf_pulled) ?
-                          length($1) : $max_buf_pulled;
+                           length($1)                    :
+                           $max_buf_pulled;
         my (@chunks);
         my $c = $1;
         @chunks = $c =~ m{ ( (?: ^ [^\n]+? \n|^\n) {1,500} ) }gsmx;
@@ -1653,12 +1655,19 @@ sub _dyn_symbol_tuples {
 }
 
 sub _init_cache {
+  # $obj is a closure for the top level __PACKAGE__ object instance that was
+  # passed in from start_stack_resolve
+  my ($output_dir) = $obj->output_dir;
+  #my ($output_dir) = "/tmp";
+
+  say "Initializing cache in dir: $output_dir";
+  
   my ($RB_cache) =
     CHI->new(
       driver       => 'BerkeleyDB',
       # No size specified
       # cache_size   => '8m',
-      root_dir     => File::Spec->catfile( '/perfwork/ustack/P150-2/', 'symbol_tables' ),
+      root_dir     => File::Spec->catfile( $output_dir, 'symbol_tables' ),
       namespace    => 'RedBlack_tree_symbol',
       global       => 0,
       on_get_error => 'warn',
@@ -1670,7 +1679,7 @@ sub _init_cache {
                       }
     );
 
-  $direct_symbol_cache =
+  $worker_direct_symbol_cache =
     CHI->new(
       driver       => 'RawMemory',
       # This is in terms of item count, not bytes!
@@ -1679,7 +1688,7 @@ sub _init_cache {
     );
 
   my $RB_keys_aref = [ $RB_cache->get_keys ];
-  $symtab_trees_href =
+  $worker_symtab_trees_href =
     $RB_cache->get_multi_hashref($RB_keys_aref);
 }
 
@@ -1694,12 +1703,12 @@ sub _resolver {
     my $line = $1;
     if ($line =~ m/^(?<keyfile>[^:]+):0x(?<offset>[\da-fA-F]+)$/) {
       # Return direct lookup if available
-      if ($cached_result = $direct_symbol_cache->get($line)) {
+      if ($cached_result = $worker_direct_symbol_cache->get($line)) {
         $line = $cached_result;
       } else {
         # Otherwise look up the symbol in the RB Tree
         my ($keyfile, $offset) = ($+{keyfile}, hex( $+{offset} ) );
-        if ( defined( my $search_tree = $symtab_trees_href->{$keyfile} ) ) {
+        if ( defined( my $search_tree = $worker_symtab_trees_href->{$keyfile} ) ) {
           my $symtab_entry = $search_tree->lookup( $offset, LULTEQ );
           if (defined($symtab_entry)) {
             if (($offset >= $symtab_entry->[$FUNCTION_START_ADDRESS] ) and
@@ -1711,7 +1720,7 @@ sub _resolver {
                         $offset - $symtab_entry->[$FUNCTION_START_ADDRESS]);
               # If we got here, we have something to store in the direct symbol
               # lookup cache
-              $direct_symbol_cache->set($line,$resolved);
+              $worker_direct_symbol_cache->set($line,$resolved);
               $line =~ s/^(?<keyfile>[^:]+):0x(?<offset>[\da-fA-F]+)$/${resolved}/;
             } else {
               $line .= " [SYMBOL TABLE LOOKUP FAILED - POTENTIAL MATCH FAILED]";
