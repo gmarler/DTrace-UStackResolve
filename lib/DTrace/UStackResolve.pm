@@ -15,6 +15,7 @@ use File::stat;
 use File::ShareDir        qw( :ALL );
 use File::Temp            qw();
 use FindBin               qw( $Bin );
+use Math::BigInt          qw();
 use IO::File;
 use IO::Async;
 use IO::Async::Loop;
@@ -760,7 +761,8 @@ sub BUILD {
 
   # make $obj available for output_dir contents in _init_cache initialization of
   # IO::Async::Function for all worker threads
-  $obj = $self; 
+  # TODO: This may no longer be needed
+  $obj = $self;
   # Ensure we have an output dir do put things in
   $self->output_dir;
   $self->datestamp;
@@ -869,16 +871,9 @@ has gen_symtab_func => (
 );
 
 has resolver_func => (
-  is      => 'ro',
-  isa     => 'IO::Async::Function',
-  default => sub {
-    return IO::Async::Function->new(
-      init_code   => \&_init_cache,
-      code        => \&_resolver,
-      min_workers => 8,
-      max_workers => 8,
-    ),
-  },
+  is      => 'rw',
+  isa     => 'Undef|IO::Async::Function',
+  default => undef,
   lazy    => 1,
 );
 
@@ -891,12 +886,14 @@ sub _build_loop {
   my $sha1_func       = $self->sha1_func;
   my $pldd_func       = $self->pldd_func;
   my $gen_symtab_func = $self->gen_symtab_func;
-  my $resolver_func   = $self->resolver_func;
+  # Not defined quite yet
+  #my $resolver_func   = $self->resolver_func;
 
   $loop->add( $sha1_func );
   $loop->add( $pldd_func );
   $loop->add( $gen_symtab_func );
-  $loop->add( $resolver_func );
+  # Have to add to loop after it's defined
+  #$loop->add( $resolver_func );
 
   return $loop;
 }
@@ -1379,8 +1376,19 @@ sub start_stack_resolve {
   my ($unresolved_out) = $self->dscript_unresolved_out_fh->filename;
   my ($resolved_fh)    = $self->resolved_out_fh;
   my ($loop)           = $self->loop;
-  my ($resolver_func)  = $self->resolver_func;
   my ($max_buf_pulled) = 0;  # max length of buffer pulled off of file
+  # This is not yet defined - we're doing it now...
+  my ($resolver_func)  =
+    IO::Async::Function->new(
+      init_code   => \&_init_cache,
+      code        => \&_resolver,
+      min_workers => 8,
+      max_workers => 8,
+    );
+  # squirrel it away
+  $self->resolver_func($resolver_func);
+  # And now we can add it to the loop
+  $loop->add( $resolver_func );
 
   # Read a "chunk of data (MUST contain *ONLY* full lines, no partials)
   # and pass this over a Channel to worker processes to actually do
@@ -1616,7 +1624,7 @@ sub _get_exec_load_address {
   # TODO: Confirm we don't need Math::BigInt here
   #my $load_address = Math::BigInt->new($+{load_address_in_hex});
   my $hex_load_address = $+{load_address_in_hex};
-  my $load_address     = hex($hex_load_address);
+  my $load_address     = Math::BigInt->from_hex($hex_load_address)->numify;
 
   say "LOAD ADDRESS (hex): " . $hex_load_address;
   say "LOAD ADDRESS (dec): " . $load_address;
@@ -1656,7 +1664,7 @@ sub _init_cache {
   # $obj is a closure for the top level __PACKAGE__ object instance that was
   # passed in from start_stack_resolve
   my ($output_dir) = $obj->output_dir;
-  
+
   my ($RB_cache) =
     CHI->new(
       driver       => 'BerkeleyDB',
@@ -1702,7 +1710,9 @@ sub _resolver {
         $line = $cached_result;
       } else {
         # Otherwise look up the symbol in the RB Tree
-        my ($keyfile, $offset) = ($+{keyfile}, hex( $+{offset} ) );
+        my ($keyfile, $offset) = ( $+{keyfile},
+                                   Math::BigInt->from_hex( $+{offset} )->numify
+                                 );
         if ( defined( my $search_tree = $worker_symtab_trees_href->{$keyfile} ) ) {
           my $symtab_entry = $search_tree->lookup( $offset, LULTEQ );
           if (defined($symtab_entry)) {
