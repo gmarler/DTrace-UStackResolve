@@ -1656,9 +1656,6 @@ sub _init_cache {
   # $obj is a closure for the top level __PACKAGE__ object instance that was
   # passed in from start_stack_resolve
   my ($output_dir) = $obj->output_dir;
-  #my ($output_dir) = "/tmp";
-
-  say "Initializing cache in dir: $output_dir";
   
   my ($RB_cache) =
     CHI->new(
