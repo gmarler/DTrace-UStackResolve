@@ -24,9 +24,9 @@ Readonly my $FUNCTION_START_ADDRESS => 1;
 Readonly my $FUNCTION_SIZE          => 2;
 
 my $output_dir = '/tmp';
-my $cache_root = '/tmp/symbol_tables';
+my $cache_root = '/perfwork/ustack/P150-2/symbol_tables';
 
-my $unresolved_file = '/tmp/DTrace-off-cpu-UNRESOLVED-20161107-CFvL';
+my $unresolved_file = '/perfwork/ustack/P150-2/whatfor_pid_lpbig.out-20161109';
 
 
 my $unresolved_fh  = IO::File->new($unresolved_file, "<");
@@ -140,38 +140,50 @@ sub driver {
 
 sub init_cache {
   $RB_cache =
-    CHI->new(
-              driver       => 'SharedMem',
-              size         => 64 * 1024 * 1024,
-              shmkey       => 12344322,
-              namespace    => 'RedBlack_tree_symbol',
-              global       => 0,
-              on_get_error => 'warn',
-              on_set_error => 'warn',
-             );
-
   # CHI->new(
-  #           driver       => 'BerkeleyDB',
-  #           # No size specified
-  #           # cache_size   => '8m',
-  #           root_dir     => File::Spec->catfile( $output_dir, 'symbol_tables' ),
+  #           driver       => 'SharedMem',
+  #           size         => 64 * 1024 * 1024,
+  #           shmkey       => 12344322,
   #           namespace    => 'RedBlack_tree_symbol',
   #           global       => 0,
   #           on_get_error => 'warn',
   #           on_set_error => 'warn',
-  #           l1_cache     => { driver   => 'RawMemory',
-  #                             global   => 0,
-  #                             # This is in terms of items, not bytes!
-  #                             max_size => 256*1024,
-  #                           }
   #          );
+
+   CHI->new(
+             driver       => 'BerkeleyDB',
+             # No size specified
+             # cache_size   => '8m',
+             root_dir     => File::Spec->catfile( '/perfwork/ustack/P150-2/', 'symbol_tables' ),
+             namespace    => 'RedBlack_tree_symbol',
+             global       => 0,
+             on_get_error => 'warn',
+             on_set_error => 'warn',
+             l1_cache     => { driver   => 'RawMemory',
+                               global   => 0,
+                               # This is in terms of items, not bytes!
+                               max_size => 128*1024,
+                             }
+            );
+
+  $direct_symbol_cache =
+  CHI->new(
+            driver       => 'RawMemory',
+            # This is in terms of item count, not bytes!
+            max_size     => 8*1024,
+            datastore    => {},
+            #namespace    => 'direct_symbol',
+            #global       => 0,
+            #on_get_error => 'warn',
+            #on_set_error => 'warn',
+          );
+
+
 
   #say "RB cache keys:\n" . join "\n", $RB_cache->get_keys();
   my $RB_keys_aref = [ $RB_cache->get_keys ];
   $symtab_trees_href =
     $RB_cache->get_multi_hashref($RB_keys_aref);
-  # Initialize direct symbol lookup href
-  $direct_symbol_cache = {};
 }
 
 sub resolver {
@@ -185,8 +197,8 @@ sub resolver {
     my $line = $1;
     if ($line =~ m/^(?<keyfile>[^:]+):0x(?<offset>[\da-fA-F]+)$/) {
       # Return direct lookup if available
-      if (exists($direct_symbol_cache->{$line})) {
-        #return $direct_symbol_cache->{$line};
+      if (my ($result) = $direct_symbol_cache->get($line)) {
+        return $result if defined($result);
       }
 
       my ($keyfile, $offset) = ($+{keyfile}, hex( $+{offset} ) );
@@ -202,7 +214,7 @@ sub resolver {
                       $offset - $symtab_entry->[$FUNCTION_START_ADDRESS]);
             # If we got here, we have something to store in the direct symbol
             # lookup cache
-            #$direct_symbol_cache->{$line} = $resolved;
+            $direct_symbol_cache->set($line,$resolved);
             $line =~ s/^(?<keyfile>[^:]+):0x(?<offset>[\da-fA-F]+)$/${resolved}/;
           } else {
             $line .= " [SYMBOL TABLE LOOKUP FAILED - POTENTIAL MATCH FAILED]";
@@ -224,10 +236,6 @@ sub resolver {
 
 
 driver($unresolved_file);
-
-say "DONE";
-
-sleep(10);
 
 
 #my $symtab_cache =
