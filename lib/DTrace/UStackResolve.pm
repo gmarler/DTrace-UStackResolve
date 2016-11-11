@@ -1402,24 +1402,11 @@ sub start_stack_resolve {
 
     on_read => sub {
       my ( $self, $buffref, $eof ) = @_;
-      # as we read the file to resolve symbols in, we often need to know
-      # what the current PID is for the data which follows to do an accurate
-      # symbol table lookup
-      my ($current_pid);
 
       while( $$buffref =~ s/^(.*)\n// ) {
         my $line = $1;
         #say "Received a line $line";
 
-        if ($line =~ m/^PID:(?<pid>\d+)/) {
-          $current_pid = $+{pid};
-          # TODO: look this PID's entries up in at least the following
-          #       namespaces, generating them asynchronously if necessary:
-          # - ustack_resolve_pids
-          # - symbol_table
-          $resolved_fh->print( "$line\n" );
-          next;
-        }
         $line = $obj->_resolve_symbol( $direct_symbol_cache,
                                        $symtab_trees_href,
                                        $line, $current_pid );
@@ -1430,6 +1417,8 @@ sub start_stack_resolve {
       if ($eof) {
         if ($obj->dtrace_has_exited) {
           say "DTrace Script has exited, and read everything it produced - EXITING";
+          # NOTE: Added once we moved to IO::Async::Function
+          $loop->stop;
           exit(0);
         }
       }
