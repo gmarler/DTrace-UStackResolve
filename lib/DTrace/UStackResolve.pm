@@ -1374,6 +1374,7 @@ sub start_stack_resolve {
   my ($unresolved_out) = $self->dscript_unresolved_out_fh->filename;
   my ($resolved_fh)    = $self->resolved_out_fh;
   my ($loop)           = $self->loop;
+  my ($max_buf_pulled);  # max length of buffer pulled off of file
   # Get a copy of the hashref containing the RB Trees for each symtab
   my ($RB_keys_aref) = [ $self->RedBlack_tree_cache->get_keys ];
   my $symtab_trees_href =
@@ -1403,20 +1404,33 @@ sub start_stack_resolve {
     on_read => sub {
       my ( $self, $buffref, $eof ) = @_;
 
-      while( $$buffref =~ s/^(.*)\n// ) {
-        my $line = $1;
-        #say "Received a line $line";
+      #while ( $$buffref =~ s/^(.*)\n// ) {
+      while ( $$buffref =~ s/(.+\n)//smx ) {
+        $max_buf_pulled = (length($1) > $max_buf_pulled) ?
+                          length($1) : $max_buf_pulled;
+        my (@chunks);
+        my $c = $1;
+        @chunks = $c =~ m{ ( (?: ^ [^\n]+? \n|^\n) {1,500} ) }gsmx;
 
-        $line = $obj->_resolve_symbol( $direct_symbol_cache,
-                                       $symtab_trees_href,
-                                       $line, $current_pid );
-        $resolved_fh->print( "$line\n" );
+        my $f = fmap {
+          my ($chunk) = @_;
+          $resolver_func->call( args => [ $chunk ] );
+        } foreach => \@chunks,
+          concurrent => 8;
+
+        my (@resolved_chunks) = $f->get;
+        foreach my $chunk (@resolved_chunks) {
+          $resolved_fh->print($chunk);
+        }
+
       }
 
       # This might not be the cleanest way to go about this...
       if ($eof) {
+        say "MAX BUFFER PULLED FROM FILE: $max_buf_pulled";
         if ($obj->dtrace_has_exited) {
           say "DTrace Script has exited, and read everything it produced - EXITING";
+          $resolved_fh->close;
           # NOTE: Added once we moved to IO::Async::Function
           $loop->stop;
           exit(0);
