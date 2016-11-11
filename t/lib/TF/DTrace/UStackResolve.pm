@@ -92,14 +92,11 @@ sub test_user_stack_frames {
 
   my ($obj);
 
-  #$obj = $test->class_name->new( { execname => $test->{execname_attribute} } );
   $obj = $test->class_name->new( { pids => [ $$ ] } );
   cmp_ok( $obj->user_stack_frames , '==', 100,
           'implict default user_stack_frames setting to 100' );
 
 
-  #$obj = $test->class_name->new( { execname => $test->{execname_attribute},
-  #                                 user_stack_frames => 1, } );
   $obj = $test->class_name->new( { pids => [ $$ ],
                                    user_stack_frames => 1, } );
   cmp_ok( $obj->user_stack_frames , '==', 1,
@@ -107,15 +104,11 @@ sub test_user_stack_frames {
 
   # Make sure selecting user_stack_frames outside the range dies
   dies_ok( sub {
-             #$test->class_name->new( { execname => $test->{execname_attribute},
-             #                                 user_stack_frames => 0 } );
              $test->class_name->new( { pids => [ $$ ],
                                        user_stack_frames => 0 } );
            },
            'below user_stack_frames range should die' );
   dies_ok( sub {
-             #$test->class_name->new( { execname => $test->{execname_attribute},
-             #                          user_stack_frames => 101 } );
              $test->class_name->new( { pids => [ $$ ],
                                        user_stack_frames => 101 } );
            },
