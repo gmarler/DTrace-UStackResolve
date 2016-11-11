@@ -1395,8 +1395,6 @@ sub start_stack_resolve {
   #       debugging in the case where a stack resolution fails.
   my $filestream = IO::Async::FileStream->new(
     read_handle => $dtrace_unresolved_fh,
-    # TODO: Eliminate autoflush
-    autoflush   => $self->autoflush_dtrace_output,
     on_initial => sub {
       my ( $self ) = @_;
       say "FileStream on_initial self type: " . ref( $self );
