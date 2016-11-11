@@ -31,4 +31,7 @@ tick-1sec
   trunc(@s);
 }
 
-
+tick-1hour
+{
+  exit(0);
+}

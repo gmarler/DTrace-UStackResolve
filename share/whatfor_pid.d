@@ -60,3 +60,8 @@ tick-1sec
 
   trunc(@);
 }
+
+tick-1hour
+{
+  exit(0);
+}
