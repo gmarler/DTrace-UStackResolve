@@ -20,9 +20,6 @@ sub test_startup {
 
   # ... Anything you need to do...
 
-  # Picking an execname that EXTREMELY likely to be running on any Solaris
-  $test->{execname_attribute} = '/usr/sbin/nscd';
-
   my $obj = $test->class_name->new( { pids => [ $$ ] } );
   $test->{obj} = $obj;
 }
@@ -41,10 +38,6 @@ sub test_constants {
 
   my @constants = qw( PLDD ELFDUMP PGREP DTRACE );
 
-  #my $obj = $test->class_name->new( { execname => $test->{execname_attribute} } );
-
-  #diag $obj->dump;
-
   foreach my $constant( @constants ) {
     is( defined($obj->$constant), 1,
         "$constant constant is defined" );
@@ -62,37 +55,20 @@ sub test_constants {
 sub test_loop {
   my ($test) = shift;
 
-  #my $obj = $test->class_name->new( { execname => $test->{execname_attribute} } );
-  my $obj = $test->class_name->new( { pids => [ $$ ] } );
-  isa_ok( $obj->loop, 'IO::Async::Loop' );
-}
+  #my $obj = $test->class_name->new( { pids => [ $$ ] } );
+  my $obj = $test->{obj};
 
-#sub test_autoflush_dtrace_output {
-#  my ($test) = shift;
-#
-#  my ($obj);
-#  $obj = $test->class_name->new( { execname => $test->{execname_attribute},
-#                                   autoflush_dtrace_output => 0 } );
-#  cmp_ok( $obj->autoflush_dtrace_output, '==', 0,
-#         'explicit autoflush_dtrace_output setting to 0' );
-#
-#  $obj = $test->class_name->new( { execname => $test->{execname_attribute} } );
-#  cmp_ok( $obj->autoflush_dtrace_output, '==', 0,
-#         'implicit default autoflush_dtrace_output setting to 0' );
-#  $obj = $test->class_name->new( { execname => $test->{execname_attribute},
-#                                   autoflush_dtrace_output => 1 } );
-#  cmp_ok( $obj->autoflush_dtrace_output, '==', 1,
-#         'explicit autoflush_dtrace_output setting to 1' );
-#  # TODO: Actually test whether the autoflush *happens*
-#}
+  isa_ok( $obj->loop, 'IO::Async::Loop' );
+  # TODO: Create a new loop, and ensure that it's a singleton by confirming it's
+  #       identical to the one that's stored in the object already
+}
 
 
 sub test_user_stack_frames {
   my ($test) = shift;
 
-  my ($obj);
+  my ($obj) = $test->{obj};
 
-  $obj = $test->class_name->new( { pids => [ $$ ] } );
   cmp_ok( $obj->user_stack_frames , '==', 100,
           'implict default user_stack_frames setting to 100' );
 
