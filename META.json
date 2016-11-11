@@ -71,6 +71,7 @@
             "IPC::System::Simple" : "0",
             "List::MoreUtils" : "0",
             "List::Util" : "0",
+            "Math::BigInt" : "0",
             "Moose" : "0",
             "Moose::Util::TypeConstraints" : "0",
             "MooseX::ClassAttribute" : "0",
@@ -109,11 +110,11 @@
    "provides" : {
       "DTrace::UStackResolve" : {
          "file" : "lib/DTrace/UStackResolve.pm",
-         "version" : "0.014"
+         "version" : "0.015"
       }
    },
    "release_status" : "stable",
-   "version" : "0.014",
+   "version" : "0.015",
    "x_contributors" : [
       "Gordon Marler <gmarler@bloomberg.net>",
       "gmarler <gmarler@gmarler.com>"
