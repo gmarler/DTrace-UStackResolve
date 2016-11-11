@@ -769,6 +769,7 @@ sub BUILD {
   $self->pldd_func;
   $self->sha1_func;
   $self->gen_symtab_func;
+  $self->resolver_func;
   $self->loop;
   # TODO: Cleanup - Doesn't seem to be a builder here anymore
   $self->pids;
@@ -891,6 +892,7 @@ sub _build_loop {
 
   $loop->add( $sha1_func );
   $loop->add( $pldd_func );
+  $loop->add( $gen_symtab_func );
   $loop->add( $resolver_func );
 
   return $loop;
@@ -1374,6 +1376,7 @@ sub start_stack_resolve {
   my ($unresolved_out) = $self->dscript_unresolved_out_fh->filename;
   my ($resolved_fh)    = $self->resolved_out_fh;
   my ($loop)           = $self->loop;
+  my ($resolver_func)  = $self->resolver_func;
   my ($max_buf_pulled);  # max length of buffer pulled off of file
   # Get a copy of the hashref containing the RB Trees for each symtab
   my ($RB_keys_aref) = [ $self->RedBlack_tree_cache->get_keys ];
