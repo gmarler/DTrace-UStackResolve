@@ -36,7 +36,7 @@ my ($pid) =
           stat("$dir/$file");
           if (-f "$dir/$file") {
             my $elapsed = tv_interval($t0);
-            if ($elapsed > 10) {
+            if ($elapsed > 20) {
               last OUTER;
             }
 
