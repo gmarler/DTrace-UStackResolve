@@ -52,6 +52,9 @@ our %dtrace_types = (
   "off-cpu_tid"     => "whatfor_pid_tid.d",
 );
 
+# NOTE: For use by IO::Async::Function resolver
+our ($symtab_trees_href, $direct_symbol_cache);
+
 #
 # TODO: This module assumes use of a Perl with 64-bit ints.  Check for this, or
 #       use Math::BigInt if it's missing.
@@ -866,8 +869,8 @@ has resolver_func => (
   isa     => 'IO::Async::Function',
   default => sub {
     return IO::Async::Function->new(
-      init_code   => \&init_cache,
-      code        => \&resolver,
+      init_code   => \&_init_cache,
+      code        => \&_resolver,
       min_workers => 8,
       max_workers => 8,
     ),
@@ -1642,6 +1645,87 @@ sub _dyn_symbol_tuples {
 
   return $function_tuples;
 }
+
+sub _init_cache {
+  my ($RB_cache) =
+    CHI->new(
+      driver       => 'BerkeleyDB',
+      # No size specified
+      # cache_size   => '8m',
+      root_dir     => File::Spec->catfile( '/perfwork/ustack/P150-2/', 'symbol_tables' ),
+      namespace    => 'RedBlack_tree_symbol',
+      global       => 0,
+      on_get_error => 'warn',
+      on_set_error => 'warn',
+      l1_cache     => { driver   => 'RawMemory',
+                        global   => 0,
+                        # This is in terms of items, not bytes!
+                        max_size => 128*1024,
+                      }
+    );
+
+  $direct_symbol_cache =
+    CHI->new(
+      driver       => 'RawMemory',
+      # This is in terms of item count, not bytes!
+      max_size     => 8*1024,
+      global       => 0,
+    );
+
+  my $RB_keys_aref = [ $RB_cache->get_keys ];
+  $symtab_trees_href =
+    $RB_cache->get_multi_hashref($RB_keys_aref);
+}
+
+sub _resolver {
+  my ($chunk) = @_;
+
+  my ($resolved_chunk,$cached_result);
+  my $unresolved_re =
+    qr/^(?<keyfile>[^:]+):0x(?<offset>[\da-fA-F]+)/;
+
+  while ( $chunk =~ s/^(.*)\n// ) {
+    my $line = $1;
+    if ($line =~ m/^(?<keyfile>[^:]+):0x(?<offset>[\da-fA-F]+)$/) {
+      # Return direct lookup if available
+      if ($cached_result = $direct_symbol_cache->get($line)) {
+        $line = $cached_result;
+      } else {
+        # Otherwise look up the symbol in the RB Tree
+        my ($keyfile, $offset) = ($+{keyfile}, hex( $+{offset} ) );
+        if ( defined( my $search_tree = $symtab_trees_href->{$keyfile} ) ) {
+          my $symtab_entry = $search_tree->lookup( $offset, LULTEQ );
+          if (defined($symtab_entry)) {
+            if (($offset >= $symtab_entry->[$FUNCTION_START_ADDRESS] ) and
+                ($offset <= ($symtab_entry->[$FUNCTION_START_ADDRESS] +
+                             $symtab_entry->[$FUNCTION_SIZE]) ) ) {
+              my $resolved =
+                sprintf("%s+0x%x",
+                        $symtab_entry->[$FUNCTION_NAME],
+                        $offset - $symtab_entry->[$FUNCTION_START_ADDRESS]);
+              # If we got here, we have something to store in the direct symbol
+              # lookup cache
+              $direct_symbol_cache->set($line,$resolved);
+              $line =~ s/^(?<keyfile>[^:]+):0x(?<offset>[\da-fA-F]+)$/${resolved}/;
+            } else {
+              $line .= " [SYMBOL TABLE LOOKUP FAILED - POTENTIAL MATCH FAILED]";
+            }
+          } else {
+            $line .= " [SYMBOL TABLE LOOKUP FAILED - NOT EVEN A POTENTIAL MATCH]";
+            #say "FAILED TO LOOKUP ENTRY FOR: $keyfile";
+            #confess "WHAT THE HECK HAPPENED???";
+          }
+        } else {
+          $line .= " [NO SYMBOL TABLE FOR $keyfile]";
+        }
+      }
+    }
+    $resolved_chunk .= "$line\n";
+  }
+
+  return $resolved_chunk;
+}
+
 
 =head1 FUNCTIONS
 
