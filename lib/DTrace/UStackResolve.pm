@@ -861,6 +861,21 @@ has gen_symtab_func => (
   lazy    => 1,
 );
 
+has resolver_func => (
+  is      => 'ro',
+  isa     => 'IO::Async::Function',
+  default => sub {
+    return IO::Async::Function->new(
+      init_code   => \&init_cache,
+      code        => \&resolver,
+      min_workers => 8,
+      max_workers => 8,
+    ),
+  },
+  lazy    => 1,
+);
+
+
 sub _build_loop {
   my ($self) = shift;
 
@@ -869,10 +884,11 @@ sub _build_loop {
   my $sha1_func       = $self->sha1_func;
   my $pldd_func       = $self->pldd_func;
   my $gen_symtab_func = $self->gen_symtab_func;
+  my $resolver_func   = $self->resolver_func;
 
   $loop->add( $sha1_func );
   $loop->add( $pldd_func );
-  $loop->add( $gen_symtab_func );
+  $loop->add( $resolver_func );
 
   return $loop;
 }
