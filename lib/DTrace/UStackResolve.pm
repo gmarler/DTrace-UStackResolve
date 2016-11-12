@@ -589,6 +589,14 @@ has 'autoflush_dtrace_output' => (
   default     => 0,
 );
 
+# How long the DTrace will run before exiting
+has 'runtime' => (
+  is          => 'ro',
+  isa         => 'Str',
+  default     => '1hour',
+);
+
+
 # TODO ATTRIBUTES:
 # - autoflush of resolved stack output - to be used for scripts that produce
 #   output slowly
@@ -1145,10 +1153,10 @@ sub _replace_DTrace_keywords {
   my ($self,$script) = @_;
 
   my ($execname,$ustack_frames,$bufsize,$aggsize,$aggrate,$switchrate,
-      $cleanrate,$dynvarsize) =
+      $cleanrate,$dynvarsize,$runtime) =
     ($self->personal_execname, $self->user_stack_frames, $self->bufsize,
      $self->aggsize, $self->aggrate, $self->switchrate, $self->cleanrate,
-     $self->dynvarsize);
+     $self->dynvarsize,$self->runtime);
 
   my ($pids_aref, $tid) =
     ($self->pids, $self->tid);
@@ -1169,6 +1177,8 @@ sub _replace_DTrace_keywords {
   $script =~ s/__CLEANRATE__/$cleanrate/gsmx;
   say "REPLACING __DYNVARSIZE__ with $dynvarsize";
   $script =~ s/__DYNVARSIZE__/$dynvarsize/gsmx;
+  say "REPLACING __RUNTIME__ with $runtime";
+  $script =~ s/__RUNTIME__/$runtime/gsmx;
 
   my (@pidlist_snippets, $pidlist_snippet);
 
