@@ -61,7 +61,7 @@ tick-1sec
   trunc(@);
 }
 
-tick-1hour
+tick-__RUNTIME__
 {
   exit(0);
 }
