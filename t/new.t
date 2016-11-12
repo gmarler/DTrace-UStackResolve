@@ -72,5 +72,8 @@ isa_ok($obj, 'DTrace::UStackResolve', 'object is the right type');
 # pull out of the $obj anyway
 $loop->run();
 
+# Once we fall out of the loop, kill the working pid
+kill 'TERM', $pid;
+
 done_testing();
 
