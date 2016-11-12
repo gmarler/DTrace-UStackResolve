@@ -14,11 +14,14 @@ use Time::HiRes qw(gettimeofday tv_interval);
 use_ok('DTrace::UStackResolve');
 
 # This is the "first" loop - since this is a singleton, the
-# DTrace::UStackResolve object will 're-initialize' it, which is to say it'll
-# just use the same one
+# DTrace::UStackResolve object will simply reuse it if we try to
+# IO::Async::Loop->new() it again.
+#
 #
 my $loop = IO::Async::Loop->new;
 
+# Here we just launch a pid that does a lot of CPU intensive work of some kind,
+# so that the DTrace profile will produce stack output that has to be resolved.
 my ($pid) =
   $loop->spawn_child(
     code => sub {
@@ -35,11 +38,6 @@ my ($pid) =
 
           stat("$dir/$file");
           if (-f "$dir/$file") {
-            my $elapsed = tv_interval($t0);
-            if ($elapsed > 20) {
-              last OUTER;
-            }
-
             my $fh = IO::File->new("$dir/$file","<") or next;
             my $c = do { local $/; <$fh>; };
             my ($digest) = Digest::SHA1::sha1_hex($c);
@@ -62,7 +60,11 @@ my ($pid) =
     },
   );
 
-my $obj = DTrace::UStackResolve->new( { pids => [ $pid ] } );
+# Use the runtime arg to have the DTrace stop producing output in 10 seconds
+my $obj = DTrace::UStackResolve->new( { pids => [ $pid ],
+                                        runtime => '10sec',
+                                      }
+                                    );
 
 isa_ok($obj, 'DTrace::UStackResolve', 'object is the right type');
 

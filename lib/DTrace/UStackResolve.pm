@@ -1423,14 +1423,8 @@ sub start_stack_resolve {
   #       debugging in the case where a stack resolution fails.
   my $filestream = IO::Async::FileStream->new(
     read_handle => $dtrace_unresolved_fh,
-    read_len    => 1024 * 1024,  # 1 MB rather than 8 KB reads
-    #on_initial => sub {
-    #  my ( $self ) = @_;
-    #  say "FileStream on_initial self type: " . ref( $self );
-    #  #$self->seek_to_last( "\n" );
-    #  # Start at beginning of file
-    #  $self->seek( 0 );
-    #},
+    read_len    => 1024 * 1024,  # 1 MB rather than 8 KB max reads
+    read_all    => 1,
 
     on_read => sub {
       my ( $self, $buffref, $eof ) = @_;
@@ -1457,15 +1451,17 @@ sub start_stack_resolve {
 
       }
 
-      # This might not be the cleanest way to go about this...
+      # For a FileStream, $eof will be set every time we reach the end of the
+      # file, but we'll continue to watch for changes, UNLESS we know the DTrace
+      # script that's producing output into the UNRESOLVED file has exited, in
+      # which case we know we're *really* done.
       if ($eof) {
-        say "MAX BUFFER PULLED FROM FILE: $max_buf_pulled";
         if ($obj->dtrace_has_exited) {
+          say "MAX BUFFER PULLED FROM FILE: $max_buf_pulled";
           say "DTrace Script has exited, and read everything it produced - EXITING";
           $resolved_fh->close;
           # NOTE: Added once we moved to IO::Async::Function
           $loop->stop;
-          exit(0);
         }
       }
 
