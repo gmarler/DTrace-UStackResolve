@@ -1258,6 +1258,7 @@ sub _start_dtrace_capture {
           $childfd ->setsockopt(SOL_SOCKET, SO_RCVBUF, 50*1024*1024);
           $childfd ->setsockopt(SOL_SOCKET, SO_SNDBUF, 50*1024*1024);
         },
+        # TODO: can you specify the read length?
         on_read => sub {
           my ( $stream, $buffref ) = @_;
 
@@ -1422,6 +1423,7 @@ sub start_stack_resolve {
   #       debugging in the case where a stack resolution fails.
   my $filestream = IO::Async::FileStream->new(
     read_handle => $dtrace_unresolved_fh,
+    read_len    => 1024 * 1024,  # 1 MB rather than 8 KB reads
     #on_initial => sub {
     #  my ( $self ) = @_;
     #  say "FileStream on_initial self type: " . ref( $self );
