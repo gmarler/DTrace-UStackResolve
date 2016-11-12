@@ -590,6 +590,7 @@ has 'autoflush_dtrace_output' => (
 );
 
 # How long the DTrace will run before exiting
+# TODO: Sanity check any alteration in this value
 has 'runtime' => (
   is          => 'ro',
   isa         => 'Str',
