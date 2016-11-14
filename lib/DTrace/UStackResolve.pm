@@ -1632,6 +1632,19 @@ sub _dyn_symbol_tuples {
   return $function_tuples;
 }
 
+=method _init_cache
+
+Initialize the following caches:
+
+The various file symbol tables, each in the form of a Red Black Tree - this
+is actually just re-opening the previously generated cache.
+
+The "direct lookup" cache, which is a RAM cache to store the most commonly
+discovered raw entries in the unresolved stack output, so that they won't
+have to be looked up in the Red Black Tree as often.
+
+=cut
+
 sub _init_cache {
   # $obj is a closure for the top level __PACKAGE__ object instance that was
   # passed in from start_stack_resolve
