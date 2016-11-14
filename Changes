@@ -1,6 +1,8 @@
 Revision history for {{$dist->name}}
 
 {{$NEXT}}
+
+0.017     2016-11-14 11:02:27-05:00 America/New_York
 - Stop processing async STDOUT from DTrace; just redirect it to a
   file upon startup.  Same for STDERR.
 
