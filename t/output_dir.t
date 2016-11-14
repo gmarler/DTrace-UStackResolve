@@ -9,7 +9,8 @@ use Data::Dumper;
 use_ok('DTrace::UStackResolve');
 
 # Check the default
-my $obj = DTrace::UStackResolve->new( { pids => [ $$ ] } );
+my $obj = DTrace::UStackResolve->new( { pids => [ $$ ],
+                                        runtime => '1min', } );
 
 cmp_ok( $obj->output_dir, 'eq', "/tmp",
         "Default output dir is /tmp" );
@@ -19,6 +20,7 @@ dies_ok(
   sub {
     my $obj = DTrace::UStackResolve->new( { pids => [ $$ ],
                                             output_dir => '/my/bogus/dir',
+                                            runtime    => '1min',
                                           } );
   },
   'Should die with non-existent output dir'
@@ -34,6 +36,7 @@ my $tempdir = File::Temp::tempdir(
 diag "Created temporary directory $tempdir";
 $obj = DTrace::UStackResolve->new( { pids => [ $$ ],
                                      output_dir => $tempdir,
+                                     runtime    => '1min',
                                    } );
 cmp_ok( $obj->output_dir, 'eq', $tempdir,
         "CUSTOM output dir is $tempdir" );
@@ -45,6 +48,7 @@ dies_ok(
   sub {
     my $obj = DTrace::UStackResolve->new( { pids => [ $$ ],
                                             output_dir => $tempdir,
+                                            runtime    => '1min',
                                           } );
   },
   "Should die for non-writeable output dir $tempdir"

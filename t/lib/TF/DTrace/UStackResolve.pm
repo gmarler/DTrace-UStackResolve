@@ -20,7 +20,9 @@ sub test_startup {
 
   # ... Anything you need to do...
 
-  my $obj = $test->class_name->new( { pids => [ $$ ] } );
+  my $obj = $test->class_name->new( { pids       => [ $$ ],
+                                      runtime    => '1min',
+                                    } );
   $test->{obj} = $obj;
 }
 
@@ -55,7 +57,6 @@ sub test_constants {
 sub test_loop {
   my ($test) = shift;
 
-  #my $obj = $test->class_name->new( { pids => [ $$ ] } );
   my $obj = $test->{obj};
 
   isa_ok( $obj->loop, 'IO::Async::Loop' );
@@ -74,19 +75,25 @@ sub test_user_stack_frames {
 
 
   $obj = $test->class_name->new( { pids => [ $$ ],
-                                   user_stack_frames => 1, } );
+                                   user_stack_frames => 1,
+                                   runtime           => '1min',
+                                  } );
   cmp_ok( $obj->user_stack_frames , '==', 1,
           'explicit user_stack_frames setting to 1' );
 
   # Make sure selecting user_stack_frames outside the range dies
   dies_ok( sub {
              $test->class_name->new( { pids => [ $$ ],
-                                       user_stack_frames => 0 } );
+                                       user_stack_frames => 0,
+                                       runtime           => '1min',
+                                     } );
            },
            'below user_stack_frames range should die' );
   dies_ok( sub {
              $test->class_name->new( { pids => [ $$ ],
-                                       user_stack_frames => 101 } );
+                                       user_stack_frames => 101,
+                                       runtime           => '1min',
+                                     } );
            },
            'above user_stack_frames range should die' );
 }
@@ -118,7 +125,9 @@ sub test_default_dtrace_type {
 
   my ($obj);
 
-  $obj = $test->class_name->new( { pids => [ $$ ] } );
+  $obj = $test->class_name->new( { pids       => [ $$ ],
+                                   runtime    => '1min',
+                                 } );
 
   cmp_ok($obj->type, 'eq', "profile", "Default DTrace type is profile");
 }
@@ -128,7 +137,9 @@ sub test_bad_dtrace_type {
 
   dies_ok(
     sub {
-      my $obj = $test->class_name->new( { pids => [ $$ ], type => 'bogus' } );
+      my $obj = $test->class_name->new( { pids       => [ $$ ],
+                                          runtime    => '1min',
+                                          type       => 'bogus', } );
     },
     "Bad DTrace type is flagged"
   );
