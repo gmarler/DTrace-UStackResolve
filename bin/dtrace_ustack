@@ -9,14 +9,18 @@ use v5.22;
 use DTrace::UStackResolve;
 use Getopt::Long;
 
-my ($execname, $output_dir, @pids, $pids_aref, $dtrace_type, $ctor_args);
+my ($execname, $output_dir, @pids, $pids_aref, $dtrace_type,
+    $preserve_tempfiles, %x_options,
+    $ctor_args);
 
 GetOptions(
            # execname not currently supported
            #"execname=s", \$execname,
-           "output_dir=s", \$output_dir,
-           "pids=s",       \@pids,
-           "type=s",       \$dtrace_type,
+           "output_dir=s",       \$output_dir,
+           "pids=s",             \@pids,
+           "type=s",             \$dtrace_type,
+           "preserve_tempfiles", \$preserve_tempfiles,
+           "x=s",                \%x_options,
        )
          or die("Error in command line arguments");
 
@@ -37,6 +41,15 @@ if (defined($output_dir)) {
 if (defined($dtrace_type)) {
   $ctor_args->{type} = $dtrace_type;
 }
+
+if (defined($preserve_tempfiles)) {
+  $ctor_args->{preserve_tempfiles} = $preserve_tempfiles;
+}
+
+foreach my $key (keys %x_options) {
+  $ctor_args->{$key} = $x_options{$key};
+}
+
 
 my $dtus = DTrace::UStackResolve->new(
   $ctor_args
