@@ -33,7 +33,7 @@ my $tempdir = File::Temp::tempdir(
                 DIR => "/tmp",
                 CLEANUP => 1,
               );
-diag "Created temporary directory $tempdir";
+
 $obj = DTrace::UStackResolve->new( { pids => [ $$ ],
                                      output_dir => $tempdir,
                                      runtime    => '1min',

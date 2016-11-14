@@ -157,8 +157,17 @@ sub test_bad_dtrace_type {
 
 sub test_preserve_tempfiles {
   my ($test) = shift;
+  #
+  # Dumb down DTrace pragmas to make the dtrace start fast
+  #
   my $obj = $test->class_name->new( { pids               => [ $$ ],
                                       runtime            => '1sec',
+                                      bufsize            => '8k',
+                                      aggsize            => '8k',
+                                      aggrate            => '1Hz',
+                                      switchrate         => '1Hz',
+                                      cleanrate          => '1Hz',
+                                      dynvarsize         => '2m',
                                       preserve_tempfiles => 1,
                                     }
                                   );
@@ -172,7 +181,8 @@ sub test_preserve_tempfiles {
   cmp_ok( $obj->preserve_tempfiles, '==', 1, 'preserve_tempfiles is ENABLED' );
 
   # Wait for DTrace to start and finish
-  sleep 2;
+  $obj->loop->loop_once( 3 );
+  $obj->loop->loop_once( 3 );
   wait_for { ! $obj->dtrace_process->is_running };
   ok( $obj->dtrace_process->is_exited, 'DTrace WITH temp file preservation exited' );
   # undef $obj to force cleanup
@@ -195,6 +205,12 @@ sub test_preserve_tempfiles {
   # cleaned up by default
   $obj = $test->class_name->new( { pids              => [ $$ ],
                                    runtime           => '1sec',
+                                   bufsize            => '8k',
+                                   aggsize            => '8k',
+                                   aggrate            => '1Hz',
+                                   switchrate         => '1Hz',
+                                   cleanrate          => '1Hz',
+                                   dynvarsize         => '2m',
                                  }
                                );
 
@@ -205,7 +221,8 @@ sub test_preserve_tempfiles {
   cmp_ok( $obj->preserve_tempfiles, '==', 0, 'preserve_tempfiles is DISABLED' );
 
   # Wait for DTrace to start and finish
-  sleep 2;
+  $obj->loop->loop_once( 3 );
+  $obj->loop->loop_once( 3 );
   wait_for { ! $obj->dtrace_process->is_running };
   ok( $obj->dtrace_process->is_exited, 'DTrace without temp file preservation exited' );
   # undef $obj to force cleanup
