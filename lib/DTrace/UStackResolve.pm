@@ -38,6 +38,7 @@ use Config;
 use Readonly;
 use Data::Dumper;
 
+
 #
 # CONSTANTS
 #
@@ -87,13 +88,13 @@ later.
 
 The purpose of this module is to perform that resolution.
 
-=cut
-
 =head1 ATTRIBUTES
 
 =cut
 
 # Local Type Constraints
+
+class_type 'IO::Async::Process';
 
 subtype 'UStackDepthRange',
   as 'Int',
@@ -307,6 +308,14 @@ has 'dtrace_script_fh' => (
   isa         => 'File::Temp',
   builder     => '_build_dtrace_script_fh',
   lazy        => 1,
+);
+
+# The IO::Async::Process for the dtrace process itself - used to ensure
+# that the process actually dies upon destruction of this object
+has 'dtrace_process' => (
+  is          => 'rw',
+  isa         => 'Undef|IO::Async::Process',
+  default     => undef,
 );
 
 #
@@ -1291,6 +1300,8 @@ sub _start_dtrace_capture {
       },
     );
 
+  # Squirrel away the IO::Async::Process
+  $self->dtrace_process( $dtrace_process );
   $loop->add( $dtrace_process );
   #$loop->loop_once(1);
   # TODO: Set up autoflush for STDERR
