@@ -1298,60 +1298,6 @@ sub _start_dtrace_capture {
   #);
 }
 
-=method _resolve_symbol
-
-Given a line of output, resolve any symbol needing it.
-
-If the symbol cannot be resolved, annotate the line accordingly.
-
-If there is no symbol to be resolve, return the line unchanged.
-
-=cut
-
-sub _resolve_symbol {
-  my ($self,$direct_symbol_cache,$symtab_trees_href,$line,$pid) = @_;
-
-  my $unresolved_re =
-    qr/^(?<keyfile>[^:]+):0x(?<offset>[\da-fA-F]+)/;
-
-  if ($line =~ m/^(?<keyfile>[^:]+):0x(?<offset>[\da-fA-F]+)$/) {
-    # Return direct lookup if available
-    if (my ($result) = $direct_symbol_cache->get($line)) {
-      return $result if defined($result);
-    }
-    my ($keyfile, $offset) = ($+{keyfile}, hex( $+{offset} ) );
-
-    # NOTE: This is looking things up by the short basename of the library
-    if ( defined( my $search_tree = $symtab_trees_href->{$keyfile} ) ) {
-      my $symtab_entry = $search_tree->lookup( $offset, LULTEQ );
-      if (defined($symtab_entry)) {
-        if (($offset >= $symtab_entry->[$FUNCTION_START_ADDRESS] ) and
-            ($offset <= ($symtab_entry->[$FUNCTION_START_ADDRESS] +
-                         $symtab_entry->[$FUNCTION_SIZE]) ) ) {
-          my $resolved =
-            sprintf("%s+0x%x",
-                    $symtab_entry->[$FUNCTION_NAME],
-                    $offset - $symtab_entry->[$FUNCTION_START_ADDRESS]);
-          # If we got here, we have something to store in the direct symbol
-          # lookup cache
-          $direct_symbol_cache->set($line,$resolved,'1 day');
-          $line =~ s/^(?<keyfile>[^:]+):0x(?<offset>[\da-fA-F]+)$/${resolved}/;
-        } else {
-          $line .= " [SYMBOL TABLE LOOKUP FAILED - POTENTIAL MATCH FAILED]";
-        }
-      } else {
-        $line .= " [SYMBOL TABLE LOOKUP FAILED - NOT EVEN A POTENTIAL MATCH]";
-        #say "FAILED TO LOOKUP ENTRY FOR: $keyfile";
-        #confess "WHAT THE HECK HAPPENED???";
-      }
-    } else {
-      $line .= " [NO SYMBOL TABLE FOR $keyfile]";
-    }
-    return $line;
-  } else {
-    return $line;
-  }
-}
 
 =method start_stack_resolve
 
