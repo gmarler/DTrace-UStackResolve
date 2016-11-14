@@ -1680,6 +1680,19 @@ sub _init_cache {
     $RB_cache->get_multi_hashref($RB_keys_aref);
 }
 
+=method _resolver( $chunk_of_unresolved_lines )
+
+Given a chunk of complete lines from the unresolved stack output, resolve any
+symbols needing it.
+
+If a symbol cannot be resolved, annotate the line accordingly.
+
+For any lines where there is no symbol to be resolved, return the line
+unchanged.
+
+=cut
+
+
 sub _resolver {
   my ($chunk) = @_;
 
