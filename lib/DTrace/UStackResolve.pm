@@ -1248,38 +1248,12 @@ sub _start_dtrace_capture {
   my $dtrace_process =
     IO::Async::Process->new(
       command => $cmd,
-      stdout  => {
-        via     => 'socketpair',
-        prefork => sub {
-          my ($parentfd, $childfd) = @_;
-
-          $parentfd->setsockopt(SOL_SOCKET, SO_RCVBUF, 50*1024*1024);
-          $parentfd->setsockopt(SOL_SOCKET, SO_SNDBUF, 50*1024*1024);
-          $childfd ->setsockopt(SOL_SOCKET, SO_RCVBUF, 50*1024*1024);
-          $childfd ->setsockopt(SOL_SOCKET, SO_SNDBUF, 50*1024*1024);
-        },
-        # TODO: can you specify the read length?
-        on_read => sub {
-          my ( $stream, $buffref ) = @_;
-
-          while ( length( $$buffref ) ) {
-            my $data = substr($$buffref,0, 5*1024*1024 ,'');
-            $unresolved_out_fh->print( $data );
-          }
-
-          return 0;
-        },
-      },
-      stderr  => {
-        on_read => sub {
-          my ( $stream, $buffref ) = @_;
-          while ( $$buffref =~ s/^(.*)\n// ) {
-            $stderr_out_fh->print( $1 . "\n" );
-          }
-
-          return 0;
-        },
-      },
+      # Instead of setting up an async routine for on_read and similar, just
+      # redirect the stderr/stdout to the appropriate file(s)
+      setup   => [
+        stdout => [ 'open', '>>', $unresolved_out_fh->filename ],
+        stderr => [ 'open', '>>', $stderr_out_fh->filename     ],
+      ],
       on_finish => sub {
         my ($proc_obj,$exitcode) = @_;
 
@@ -1312,18 +1286,16 @@ sub _start_dtrace_capture {
         # This is what we used to do:
         # At this point, DTrace has stopped producing output, but we're
         # likely not done resolving it yet - let things run...FOREVER
+        # Well... Until we're done processing the unresolved output anyway.
         #$loop->stop;
-        #exit(1);
       },
-      # on_exception => sub {
-      #   $unresolved_out_fh->close;
-      #   say "DTrace Script ABORTED!";
-      #   $loop->stop;
-      #   exit(1);
-      # },
     );
 
   $loop->add( $dtrace_process );
+  # TODO: Set up autoflush for STDERR
+  #$dtrace_process->stderr->configure(
+  #  autoflush    => 1,
+  #);
 }
 
 =method _resolve_symbol
