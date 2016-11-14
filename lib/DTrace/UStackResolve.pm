@@ -312,6 +312,7 @@ has 'dtrace_script_fh' => (
 
 # The IO::Async::Process for the dtrace process itself - used to ensure
 # that the process actually dies upon destruction of this object
+# TODO: Actually USE this to kill a leftover process
 has 'dtrace_process' => (
   is          => 'rw',
   isa         => 'Undef|IO::Async::Process',
