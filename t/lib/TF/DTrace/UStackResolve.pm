@@ -181,7 +181,7 @@ sub test_preserve_tempfiles {
   $obj->clear_dscript_err_fh;
   undef $obj;
   # Check that files still exist
-  ok( -f $dtrace_script_file, 
+  ok( -f $dtrace_script_file,
       "DTrace Script Temp file [$dtrace_script_file] preserved");
   ok( -f $dtrace_unresolved_file,
       "DTrace Unresolved Output Temp file [ $dtrace_unresolved_file] preserved");
