@@ -94,6 +94,7 @@ The purpose of this module is to perform that resolution.
 
 # Local Type Constraints
 
+# So this will be recognized as a type in a Moose attribute 'isa' field
 class_type 'IO::Async::Process';
 
 subtype 'UStackDepthRange',
@@ -811,6 +812,7 @@ sub BUILD {
   $self->datestamp;
   $self->_sanity_check_output_dir;
   $self->preserve_tempfiles;
+  $self->user_stack_frames;
   #say "Building D Script Unresolved Output Filename: " .
   #  $self->dscript_unresolved_out;
   $self->_sanity_check_type;

@@ -171,7 +171,8 @@ sub test_preserve_tempfiles {
 
   cmp_ok( $obj->preserve_tempfiles, '==', 1, 'preserve_tempfiles is ENABLED' );
 
-  # Wait for DTrace to finish
+  # Wait for DTrace to start and finish
+  sleep 2;
   wait_for { ! $obj->dtrace_process->is_running };
   ok( $obj->dtrace_process->is_exited, 'DTrace WITH temp file preservation exited' );
   # undef $obj to force cleanup
@@ -203,7 +204,8 @@ sub test_preserve_tempfiles {
 
   cmp_ok( $obj->preserve_tempfiles, '==', 0, 'preserve_tempfiles is DISABLED' );
 
-  # Wait for DTrace to finish
+  # Wait for DTrace to start and finish
+  sleep 2;
   wait_for { ! $obj->dtrace_process->is_running };
   ok( $obj->dtrace_process->is_exited, 'DTrace without temp file preservation exited' );
   # undef $obj to force cleanup
