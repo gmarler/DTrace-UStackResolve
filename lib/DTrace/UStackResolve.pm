@@ -1292,6 +1292,7 @@ sub _start_dtrace_capture {
     );
 
   $loop->add( $dtrace_process );
+  #$loop->loop_once(1);
   # TODO: Set up autoflush for STDERR
   #$dtrace_process->stderr->configure(
   #  autoflush    => 1,
