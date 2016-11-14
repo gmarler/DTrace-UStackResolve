@@ -1,6 +1,21 @@
 Revision history for {{$dist->name}}
 
 {{$NEXT}}
+- Stop processing async STDOUT from DTrace; just redirect it to a
+  file upon startup.  Same for STDERR.
+
+- Elimination of abandoned line-by-line symbol resolution code.
+
+- Make sure tests don't leave dtrace commands running for over
+  an hour. Reduce to 1 minute max.
+
+- Add __RUNTIME__ to allow DTrace scripts to abort after a
+  set time.
+
+- Read FileStream in up to 1 MB blocks, rather than just
+  8 KB at a time.
+
+- Set FileStream to "read_all"
 
 0.016     2016-11-11 16:58:33-05:00 America/New_York
 
