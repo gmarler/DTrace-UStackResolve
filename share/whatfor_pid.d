@@ -1,12 +1,12 @@
 #pragma D option noresolve
 #pragma D option quiet
 #pragma D option ustackframes=__USTACK_FRAMES__
-#pragma D option bufsize=16m
-#pragma D option aggrate=223Hz
-#pragma D option aggsize=6m
-#pragma D option switchrate=239Hz
-#pragma D option cleanrate=353Hz
-#pragma D option dynvarsize=64m
+#pragma D option bufsize=__BUFSIZE__
+#pragma D option aggrate=__AGGRATE__
+#pragma D option aggsize=__AGGSIZE__
+#pragma D option switchrate=__SWITCHRATE__
+#pragma D option cleanrate=__CLEANRATE__
+#pragma D option dynvarsize=__DYNVARSIZE__
 
 sched:::off-cpu
 / __PIDLIST__ &&
