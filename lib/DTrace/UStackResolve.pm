@@ -55,7 +55,8 @@ our %dtrace_types = (
 );
 
 # NOTE: For use by IO::Async::Function resolver workers
-my ($worker_symtab_trees_href, $worker_direct_symbol_cache, $obj);
+my ($worker_symtab_trees_href, $worker_direct_symbol_cache, $no_annotations,
+    $obj);
 
 #
 # TODO: This module assumes use of a Perl with 64-bit ints.  Check for this, or
@@ -148,6 +149,16 @@ class_has 'DTRACE' => (
 # this object
 #
 has 'preserve_tempfiles' => (
+  is          => 'ro',
+  isa         => 'Bool',
+  default     => 0,
+);
+
+#
+# If set, resolved output will NOT contain any commentary after unresolvable
+# symbols
+#
+has 'no_annotations' => (
   is          => 'ro',
   isa         => 'Bool',
   default     => 0,
@@ -1666,6 +1677,8 @@ sub _init_cache {
   my $RB_keys_aref = [ $RB_cache->get_keys ];
   $worker_symtab_trees_href =
     $RB_cache->get_multi_hashref($RB_keys_aref);
+  # Determine if annotations will be printed for non-resolvable symbols
+  $no_annotations = $obj->no_annotations;
 }
 
 =method _resolver( $chunk_of_unresolved_lines )
@@ -1714,15 +1727,21 @@ sub _resolver {
               $worker_direct_symbol_cache->set($line,$resolved);
               $line =~ s/^(?<keyfile>[^:]+):0x(?<offset>[\da-fA-F]+)$/${resolved}/;
             } else {
-              $line .= " [SYMBOL TABLE LOOKUP FAILED - POTENTIAL MATCH FAILED]";
+              if (not $no_annotations) {
+                $line .= " [SYMBOL TABLE LOOKUP FAILED - POTENTIAL MATCH FAILED]";
+              }
             }
           } else {
-            $line .= " [SYMBOL TABLE LOOKUP FAILED - NOT EVEN A POTENTIAL MATCH]";
+            if (not $no_annotations) {
+              $line .= " [SYMBOL TABLE LOOKUP FAILED - NOT EVEN A POTENTIAL MATCH]";
+            }
             #say "FAILED TO LOOKUP ENTRY FOR: $keyfile";
             #confess "WHAT THE HECK HAPPENED???";
           }
         } else {
-          $line .= " [NO SYMBOL TABLE FOR $keyfile]";
+          if (not $no_annotations) {
+            $line .= " [NO SYMBOL TABLE FOR $keyfile]";
+          }
         }
       }
     }

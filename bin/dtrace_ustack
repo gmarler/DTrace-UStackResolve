@@ -41,6 +41,10 @@ unless (exists($ctor_args->{pids})) {
   exit(1);
 }
 
+if (defined($no_annotations)) {
+  $ctor_args->{no_annotations} = 1;
+}
+
 if (defined($output_dir)) {
   $ctor_args->{output_dir} = $output_dir;
 }
@@ -51,6 +55,10 @@ if (defined($dtrace_type)) {
 
 if (defined($preserve_tempfiles)) {
   $ctor_args->{preserve_tempfiles} = $preserve_tempfiles;
+}
+
+if (defined($runtime)) {
+  $ctor_args->{runtime} = $runtime;
 }
 
 foreach my $key (keys %x_options) {
