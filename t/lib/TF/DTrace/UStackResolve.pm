@@ -13,7 +13,34 @@ use Test::Class::Moose;
 with 'Test::Class::Moose::Role::AutoUse';
 
 my ($loop) = IO::Async::Loop->new;
+
 testing_loop( $loop );
+
+# override with one that waits 20 secs instead of just 10
+{
+  # lexically scope, so no warnings is confined to this block
+  no warnings 'redefine';
+  sub IO::Async::Test::wait_for (&)
+  {
+     my ( $cond ) = @_;
+  
+     my ( undef, $callerfile, $callerline ) = caller;
+  
+     my $timedout = 0;
+     my $timerid = $loop->watch_time(
+        after => 20,
+        code => sub { $timedout = 1 },
+     );
+  
+     $loop->loop_once( 1 ) while !$cond->() and !$timedout;
+  
+     if( $timedout ) {
+        die "Nothing was ready after 20 second wait; called at $callerfile line $callerline\n";
+     } else {
+        $loop->unwatch_time( $timerid );
+     }
+  }
+}
 
 # Set up for schema
 # BEGIN { use DTrace::UStackResolve::Schema; }
@@ -25,8 +52,9 @@ sub test_startup {
   # ... Anything you need to do...
 
   my $obj = $test->class_name->new( { pids       => [ $$ ],
-                                      runtime    => '2min',
+                                      runtime    => '1sec',
                                     } );
+  $obj->resolver_func->stop;
   $test->{obj}  = $obj;
   $test->{loop} = $loop;
 }
@@ -81,6 +109,7 @@ sub test_user_stack_frames {
   cmp_ok( $obj->user_stack_frames , '==', 100,
           'implict default user_stack_frames setting to 100' );
 
+  $obj->resolver_func->stop;
 
   $obj = $test->class_name->new( { pids              => [ $$ ],
                                    user_stack_frames => 1,
@@ -89,6 +118,8 @@ sub test_user_stack_frames {
 
   cmp_ok( $obj->user_stack_frames , '==', 1,
           'explicit user_stack_frames setting to 1' );
+
+  $obj->resolver_func->stop;
 
   # Make sure selecting user_stack_frames outside the range dies
   dies_ok( sub {
@@ -136,10 +167,11 @@ sub test_default_dtrace_type {
   my ($obj);
 
   $obj = $test->class_name->new( { pids       => [ $$ ],
-                                   runtime    => '3sec',
+                                   runtime    => '1sec',
                                  } );
 
   cmp_ok($obj->type, 'eq', "profile", "Default DTrace type is profile");
+  $obj->resolver_func->stop;
 }
 
 sub test_bad_dtrace_type {
@@ -148,7 +180,7 @@ sub test_bad_dtrace_type {
   dies_ok(
     sub {
       my $obj = $test->class_name->new( { pids       => [ $$ ],
-                                          runtime    => '3sec',
+                                          runtime    => '1sec',
                                           type       => 'bogus', } );
     },
     "Bad DTrace type is flagged"
@@ -181,15 +213,14 @@ sub test_preserve_tempfiles {
   cmp_ok( $obj->preserve_tempfiles, '==', 1, 'preserve_tempfiles is ENABLED' );
 
   # Wait for DTrace to start and finish
-  $obj->loop->loop_once( 3 );
-  $obj->loop->loop_once( 3 );
   wait_for { ! $obj->dtrace_process->is_running };
   ok( $obj->dtrace_process->is_exited, 'DTrace WITH temp file preservation exited' );
-  # undef $obj to force cleanup
+  # Do basic cleanup
   $obj->clear_dtrace_script_fh;
   $obj->clear_dscript_unresolved_out_fh;
   $obj->clear_dscript_err_fh;
-  undef $obj;
+  $obj->resolver_func->stop;
+
   # Check that files still exist
   ok( -f $dtrace_script_file,
       "DTrace Script Temp file [$dtrace_script_file] preserved");
@@ -221,15 +252,14 @@ sub test_preserve_tempfiles {
   cmp_ok( $obj->preserve_tempfiles, '==', 0, 'preserve_tempfiles is DISABLED' );
 
   # Wait for DTrace to start and finish
-  $obj->loop->loop_once( 3 );
-  $obj->loop->loop_once( 3 );
   wait_for { ! $obj->dtrace_process->is_running };
   ok( $obj->dtrace_process->is_exited, 'DTrace without temp file preservation exited' );
-  # undef $obj to force cleanup
+  # Do basic cleanup
   $obj->clear_dtrace_script_fh;
   $obj->clear_dscript_unresolved_out_fh;
   $obj->clear_dscript_err_fh;
-  undef $obj;
+  $obj->resolver_func->stop;
+
   # Wait for object destruction and file deletion
   sleep 1;
   # Check that files were NOT preserved
