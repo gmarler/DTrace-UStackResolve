@@ -1206,23 +1206,23 @@ sub _replace_DTrace_keywords {
     ($self->pids, $self->tid);
 
   # TODO: Send below to debug output
-  say "REPLACING __EXECNAME__ with $execname";
+  #say "REPLACING __EXECNAME__ with $execname";
   $script =~ s/__EXECNAME__/$execname/gsmx;
-  say "REPLACING __USTACK_FRAMES__ with $ustack_frames";
+  #say "REPLACING __USTACK_FRAMES__ with $ustack_frames";
   $script =~ s/__USTACK_FRAMES__/$ustack_frames/gsmx;
-  say "REPLACING __BUFSIZE__ with $bufsize";
+  #say "REPLACING __BUFSIZE__ with $bufsize";
   $script =~ s/__BUFSIZE__/$bufsize/gsmx;
-  say "REPLACING __AGGSIZE__ with $aggsize";
+  #say "REPLACING __AGGSIZE__ with $aggsize";
   $script =~ s/__AGGSIZE__/$aggsize/gsmx;
-  say "REPLACING __AGGRATE__ with $aggrate";
+  #say "REPLACING __AGGRATE__ with $aggrate";
   $script =~ s/__AGGRATE__/$aggrate/gsmx;
-  say "REPLACING __SWITCHRATE__ with $switchrate";
+  #say "REPLACING __SWITCHRATE__ with $switchrate";
   $script =~ s/__SWITCHRATE__/$switchrate/gsmx;
-  say "REPLACING __CLEANRATE__ with $cleanrate";
+  #say "REPLACING __CLEANRATE__ with $cleanrate";
   $script =~ s/__CLEANRATE__/$cleanrate/gsmx;
-  say "REPLACING __DYNVARSIZE__ with $dynvarsize";
+  #say "REPLACING __DYNVARSIZE__ with $dynvarsize";
   $script =~ s/__DYNVARSIZE__/$dynvarsize/gsmx;
-  say "REPLACING __RUNTIME__ with $runtime";
+  #say "REPLACING __RUNTIME__ with $runtime";
   $script =~ s/__RUNTIME__/$runtime/gsmx;
 
   my (@pidlist_snippets, $pidlist_snippet);
