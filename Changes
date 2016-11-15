@@ -1,6 +1,18 @@
 Revision history for {{$dist->name}}
 
 {{$NEXT}}
+- Add preserve_tempfiles option to constructor, default to 0
+
+- Add -x <pragma>=<value> options to dtrace_ustack
+
+- DTrace Script placeholders all put into place and tested
+
+- Add --runtime option to dtrace_ustack
+
+- Add --no_annotations option to dtrace_ustack
+
+- Shut down all IO::Async::Function workers as soon as their respective work is
+  done
 
 0.017     2016-11-14 11:02:27-05:00 America/New_York
 - Stop processing async STDOUT from DTrace; just redirect it to a
