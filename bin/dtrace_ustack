@@ -11,7 +11,7 @@ use Getopt::Long;
 
 my ($execname, $output_dir, @pids, $pids_aref, $dtrace_type,
     $preserve_tempfiles, %x_options, $no_annotations, $runtime,
-    $ctor_args);
+    $help, $ctor_args);
 
 GetOptions(
            # execname not currently supported
@@ -23,10 +23,52 @@ GetOptions(
            "x=s",                \%x_options,
            "no_annotations",     \$no_annotations,
            "runtime=s",          \$runtime,
+           "h|help",             \$help,
        )
          or die("Error in command line arguments");
 
 # PODNAME: dtrace_ustack
+
+my $usage = q'
+Usage:
+    dtrace_ustack [OPTIONS] --pids PID1,PID2,...
+
+Description:
+    Allows a set of canned DTrace profiles that generate user stacks, which
+    would normally abort for binaries with large function symbol counts; think
+    hundreds of thousands to millions of functions.
+
+Options:
+    --output_dir=<DIR>    - Directory to place all output files generated, like
+                            the resolved user stack output.
+    --type=<DTrace type>  - The type of DTrace profile to perform.  At present,
+                            the following are supported:
+                            - profile (the default): on-CPU stack profiles
+                            - off-cpu              : off-CPU stack profiles
+    --preserve_tempfiles  - Keep any temporary/intermediate files generated
+                            Used for debugging purposes.
+    -x <option>=<val>     - Passed through to DTrace, just like those passed
+                            handled by dtrace(1M).
+                            Currently supported:
+                            - bufsize
+                            - aggsize
+                            - aggrate
+                            - cleanrate
+                            - switchrate
+                            - dynvarsize
+    --no_annotations      - Normally, if a symbol cannot be resolved, the
+                            reason why is annotated on the same line.  This
+                            makes it difficult to coalesce the stacks for
+                            later visualization, so this option exists.
+    --runtime=<time>      - Allows specifying how long the DTrace script should
+                            run before it exits.
+                            Default: 1hour
+';
+
+if (defined($help)) {
+  say $usage;
+  exit(0);
+}
 
 if (defined($execname)) {
   $ctor_args->{execname} = $execname;
@@ -37,7 +79,7 @@ if (defined($execname)) {
 }
 
 unless (exists($ctor_args->{pids})) {
-  say "ERROR: Usage";
+  say $usage;
   exit(1);
 }
 
