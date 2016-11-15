@@ -23,17 +23,17 @@ testing_loop( $loop );
   sub IO::Async::Test::wait_for (&)
   {
      my ( $cond ) = @_;
-  
+
      my ( undef, $callerfile, $callerline ) = caller;
-  
+
      my $timedout = 0;
      my $timerid = $loop->watch_time(
         after => 20,
         code => sub { $timedout = 1 },
      );
-  
+
      $loop->loop_once( 1 ) while !$cond->() and !$timedout;
-  
+
      if( $timedout ) {
         die "Nothing was ready after 20 second wait; called at $callerfile line $callerline\n";
      } else {
@@ -55,6 +55,9 @@ sub test_startup {
                                       runtime    => '1sec',
                                     } );
   $obj->resolver_func->stop;
+  $obj->sha1_func->stop;
+  $obj->pldd_func->stop;
+  $obj->gen_symtab_func->stop;
   $test->{obj}  = $obj;
   $test->{loop} = $loop;
 }
@@ -110,6 +113,9 @@ sub test_user_stack_frames {
           'implict default user_stack_frames setting to 100' );
 
   $obj->resolver_func->stop;
+  $obj->sha1_func->stop;
+  $obj->pldd_func->stop;
+  $obj->gen_symtab_func->stop;
 
   $obj = $test->class_name->new( { pids              => [ $$ ],
                                    user_stack_frames => 1,
@@ -120,6 +126,9 @@ sub test_user_stack_frames {
           'explicit user_stack_frames setting to 1' );
 
   $obj->resolver_func->stop;
+  $obj->sha1_func->stop;
+  $obj->pldd_func->stop;
+  $obj->gen_symtab_func->stop;
 
   # Make sure selecting user_stack_frames outside the range dies
   dies_ok( sub {
@@ -172,7 +181,55 @@ sub test_default_dtrace_type {
 
   cmp_ok($obj->type, 'eq', "profile", "Default DTrace type is profile");
   $obj->resolver_func->stop;
+  $obj->sha1_func->stop;
+  $obj->pldd_func->stop;
+  $obj->gen_symtab_func->stop;
 }
+
+sub test_DTrace_pragmas {
+  my ($test) = shift;
+
+  my ($obj);
+
+  $obj = $test->class_name->new( { pids       => [ $$ ],
+                                   runtime    => '1sec',
+                                 } );
+
+  $obj->resolver_func->stop;
+  $obj->sha1_func->stop;
+  $obj->pldd_func->stop;
+  $obj->gen_symtab_func->stop;
+
+  cmp_ok($obj->bufsize,    'eq', '8m',    "Default bufsize is 8m");
+  cmp_ok($obj->aggsize,    'eq', '6m',    "Default aggsize is 6m");
+  cmp_ok($obj->aggrate,    'eq', '223Hz', "Default aggrate is 223Hz");
+  cmp_ok($obj->switchrate, 'eq', '239Hz', "Default switchrate is 239Hz");
+  cmp_ok($obj->cleanrate,  'eq', '353Hz', "Default cleanrate is 353Hz");
+  cmp_ok($obj->dynvarsize, 'eq', '32m',   "Default dynvarsize is 32m");
+
+  $obj = $test->class_name->new( { pids       => [ $$ ],
+                                   runtime    => '1sec',
+                                   bufsize    => '1m',
+                                   aggsize    => '2m',
+                                   aggrate    => '2Hz',
+                                   switchrate => '3Hz',
+                                   cleanrate  => '4Hz',
+                                   dynvarsize => '13m',
+                                 } );
+
+  $obj->resolver_func->stop;
+  $obj->sha1_func->stop;
+  $obj->pldd_func->stop;
+  $obj->gen_symtab_func->stop;
+
+  cmp_ok($obj->bufsize,    'eq', '1m',    "Specified bufsize is 1m");
+  cmp_ok($obj->aggsize,    'eq', '2m',    "Specified aggsize is 2m");
+  cmp_ok($obj->aggrate,    'eq', '2Hz',   "Specified aggrate is 2Hz");
+  cmp_ok($obj->switchrate, 'eq', '3Hz',   "Specified switchrate is 3Hz");
+  cmp_ok($obj->cleanrate,  'eq', '4Hz',   "Specified cleanrate is 4Hz");
+  cmp_ok($obj->dynvarsize, 'eq', '13m',   "Specified dynvarsize is 13m");
+}
+
 
 sub test_bad_dtrace_type {
   my ($test) = shift;
@@ -220,6 +277,9 @@ sub test_preserve_tempfiles {
   $obj->clear_dscript_unresolved_out_fh;
   $obj->clear_dscript_err_fh;
   $obj->resolver_func->stop;
+  $obj->sha1_func->stop;
+  $obj->pldd_func->stop;
+  $obj->gen_symtab_func->stop;
 
   # Check that files still exist
   ok( -f $dtrace_script_file,
@@ -259,6 +319,9 @@ sub test_preserve_tempfiles {
   $obj->clear_dscript_unresolved_out_fh;
   $obj->clear_dscript_err_fh;
   $obj->resolver_func->stop;
+  $obj->sha1_func->stop;
+  $obj->pldd_func->stop;
+  $obj->gen_symtab_func->stop;
 
   # Wait for object destruction and file deletion
   sleep 1;
