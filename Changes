@@ -1,6 +1,8 @@
 Revision history for {{$dist->name}}
 
 {{$NEXT}}
+
+0.018     2016-11-15 10:40:30-05:00 America/New_York
 - Add preserve_tempfiles option to constructor, default to 0
 
 - Add -x <pragma>=<value> options to dtrace_ustack
