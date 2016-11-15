@@ -513,8 +513,9 @@ sub _build_dynamic_library_paths {
     uniq
     map { @$_ } @file_paths;
 
-  #say Dumper( \@file_paths );
-  #say Dumper( \@absolute_file_paths );
+  # Shut down function worker processes/threads
+  $pldd_func->stop;
+
   return \@absolute_file_paths;
 }
 
@@ -1100,6 +1101,9 @@ sub _build_symbol_table {
 
   my %symtabs = $symtabs_f->get;
 
+  # Shut down function worker processes/threads
+  $gen_symtab_func->stop;
+
   foreach my $symtab_path (keys %symtabs) {
     # Store the data in the symbol table cache
     unless (defined($symbol_table_cache
@@ -1431,6 +1435,8 @@ sub start_stack_resolve {
           say "MAX BUFFER PULLED FROM FILE: $max_buf_pulled";
           say "DTrace Script has exited, and read everything it produced - EXITING";
           $resolved_fh->close;
+          # Shut down worker processes/threads
+          $resolver_func->stop;
           # NOTE: Added once we moved to IO::Async::Function
           $loop->stop;
         }
