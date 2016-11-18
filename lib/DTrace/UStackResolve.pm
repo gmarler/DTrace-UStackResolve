@@ -50,8 +50,9 @@ Readonly my $FUNCTION_SIZE          => 2;
 our %dtrace_types = (
   "profile"         => "profile_pid.d",
   "profile_tid"     => "profile_pid_tid.d",
-  "off-cpu"         => "whatfor_pid.d",
-  "off-cpu_tid"     => "whatfor_pid_tid.d",
+  "off-cpu"         => "off_cpu_profile_pid.d",
+  "whatfor"         => "whatfor_pid.d",
+  "whatfor_tid"     => "whatfor_pid_tid.d",
 );
 
 # NOTE: For use by IO::Async::Function resolver workers

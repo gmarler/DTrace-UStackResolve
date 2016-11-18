@@ -45,6 +45,8 @@ Options:
                             the following are supported:
                             - profile (the default): on-CPU stack profiles
                             - off-cpu              : off-CPU stack profiles
+                            - whatfor              : More detailed off-CPU
+                                                     stack profiles
     --preserve_tempfiles  - Keep any temporary/intermediate files generated
                             Used for debugging purposes.
     -x <option>=<val>     - Passed through to DTrace, just like those passed
