@@ -1,8 +1,12 @@
 Revision history for {{$dist->name}}
 
 {{$NEXT}}
+- Rename original off-cpu profiles to whatfor, as they're
+  not flame graphable
+- Add off-cpu profile based on sum of latency for flamegraphs
 
 0.020     2016-11-18 15:34:21-05:00 America/New_York
+- Add nworkers DTrace pragma
 
 0.019     2016-11-15 16:32:10-05:00 America/New_York
 - Add Usage/Help to dtrace_ustack
