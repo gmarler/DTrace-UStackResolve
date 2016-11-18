@@ -26,7 +26,7 @@ tick-1sec
 {
   printf("\n%Y\n",walltimestamp);
 
-  printa(@);
+  printa("%k %k %@12u\n",@);
 
   trunc(@);
 }
