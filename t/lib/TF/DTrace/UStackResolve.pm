@@ -206,6 +206,7 @@ sub test_DTrace_pragmas {
   cmp_ok($obj->switchrate, 'eq', '239Hz', "Default switchrate is 239Hz");
   cmp_ok($obj->cleanrate,  'eq', '353Hz', "Default cleanrate is 353Hz");
   cmp_ok($obj->dynvarsize, 'eq', '32m',   "Default dynvarsize is 32m");
+  cmp_ok($obj->nworkers,   'eq', '8',     "Default nworkers is 8");
 
   $obj = $test->class_name->new( { pids       => [ $$ ],
                                    runtime    => '1sec',
@@ -215,6 +216,7 @@ sub test_DTrace_pragmas {
                                    switchrate => '3Hz',
                                    cleanrate  => '4Hz',
                                    dynvarsize => '13m',
+                                   nworkers   => '5',
                                  } );
 
   $obj->resolver_func->stop;
@@ -228,6 +230,7 @@ sub test_DTrace_pragmas {
   cmp_ok($obj->switchrate, 'eq', '3Hz',   "Specified switchrate is 3Hz");
   cmp_ok($obj->cleanrate,  'eq', '4Hz',   "Specified cleanrate is 4Hz");
   cmp_ok($obj->dynvarsize, 'eq', '13m',   "Specified dynvarsize is 13m");
+  cmp_ok($obj->nworkers,   'eq', '5',     "Specified dynvarsize is 5");
 }
 
 

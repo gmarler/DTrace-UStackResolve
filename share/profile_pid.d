@@ -7,6 +7,7 @@
 #pragma D option switchrate=__SWITCHRATE__
 #pragma D option cleanrate=__CLEANRATE__
 #pragma D option dynvarsize=__DYNVARSIZE__
+#pragma D option nworkers=__NWORKERS__
 
 profile-297Hz
 / __PIDLIST__ /
