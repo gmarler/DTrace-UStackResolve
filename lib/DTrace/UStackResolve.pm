@@ -600,19 +600,19 @@ has 'aggsize' => (
 has 'aggrate' => (
   is          => 'ro',
   isa         => 'Str',
-  default     => '223Hz',
+  default     => '23Hz',
 );
 
 has 'switchrate' => (
   is          => 'ro',
   isa         => 'Str',
-  default     => '239Hz',
+  default     => '29Hz',
 );
 
 has 'cleanrate' => (
   is          => 'ro',
   isa         => 'Str',
-  default     => '353Hz',
+  default     => '31Hz',
 );
 
 has 'dynvarsize' => (
