@@ -1,6 +1,8 @@
 Revision history for {{$dist->name}}
 
 {{$NEXT}}
+
+0.022     2016-11-19 10:03:06-05:00 America/New_York
 - Eliminate non-core perl modules from new.t test
 - Lower default *rate pragmas to prevent primary DTrace thread from overloading
   during captures
