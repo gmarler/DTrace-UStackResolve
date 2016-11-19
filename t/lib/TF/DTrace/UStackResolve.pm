@@ -202,9 +202,9 @@ sub test_DTrace_pragmas {
 
   cmp_ok($obj->bufsize,    'eq', '8m',    "Default bufsize is 8m");
   cmp_ok($obj->aggsize,    'eq', '6m',    "Default aggsize is 6m");
-  cmp_ok($obj->aggrate,    'eq', '223Hz', "Default aggrate is 223Hz");
-  cmp_ok($obj->switchrate, 'eq', '239Hz', "Default switchrate is 239Hz");
-  cmp_ok($obj->cleanrate,  'eq', '353Hz', "Default cleanrate is 353Hz");
+  cmp_ok($obj->aggrate,    'eq', '23Hz',  "Default aggrate is 23Hz");
+  cmp_ok($obj->switchrate, 'eq', '29Hz',  "Default switchrate is 29Hz");
+  cmp_ok($obj->cleanrate,  'eq', '31Hz',  "Default cleanrate is 31Hz");
   cmp_ok($obj->dynvarsize, 'eq', '32m',   "Default dynvarsize is 32m");
   cmp_ok($obj->nworkers,   'eq', '8',     "Default nworkers is 8");
 
