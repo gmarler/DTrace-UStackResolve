@@ -53,6 +53,7 @@ our %dtrace_types = (
   "off-cpu"         => "off_cpu_profile_pid.d",
   "whatfor"         => "whatfor_pid.d",
   "whatfor_tid"     => "whatfor_pid_tid.d",
+  "wakeup_chain"    => "wakeup_chain.d",
 );
 
 # NOTE: For use by IO::Async::Function resolver workers
