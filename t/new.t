@@ -5,11 +5,8 @@ use v5.22;
 use Test::Most;
 use Data::Dumper;
 use IO::Async::Loop;
-use Digest::SHA1;
-use Digest::MD5;
-use Crypt::CBC;
 use IO::File;
-use Time::HiRes qw(gettimeofday tv_interval);
+use File::Find ();
 
 use_ok('DTrace::UStackResolve');
 
@@ -24,32 +21,32 @@ my $loop = IO::Async::Loop->new;
 # so that the DTrace profile will produce stack output that has to be resolved.
 my ($pid) =
   $loop->spawn_child(
-    code => sub {
-      my $t0 = [gettimeofday];
-      OUTER:
-      foreach my $dir (qw(/usr/bin /usr/sbin /usr/lib)) {
-        opendir(DH, $dir);
-        my @files = readdir(DH);
-        closedir(DH);
+    setup => [
+      stdin  => [ "open", "<", "/dev/null" ],
+      stdout => [ "open", ">", "/dev/null" ],
+      stderr => [ "open", ">", "/dev/null" ],
+    ],
+    code  => sub {
 
-        foreach my $file (@files) {
-          next if ($file =~ /^\.$/);
-          next if ($file =~ /^\.\.$/);
+      # for the convenience of &wanted calls, including -eval statements:
+      use vars qw/*name *dir *prune/;
+      *name   = *File::Find::name;
+      *dir    = *File::Find::dir;
+      *prune  = *File::Find::prune;
 
-          stat("$dir/$file");
-          if (-f "$dir/$file") {
-            my $fh = IO::File->new("$dir/$file","<") or next;
-            my $c = do { local $/; <$fh>; };
-            my ($digest) = Digest::SHA1::sha1_hex($c);
-            $digest = Digest::MD5::md5_hex($c);
-            my ($cipher) = Crypt::CBC->new( -key => 'super secret key',
-                                            -cipher => 'Blowfish',
-                                          );
-            my ($ciphertext) = $cipher->encrypt($c);
-          }
-        }
-      }
+      sub wanted;
+
+      # Traverse desired filesystems
+      File::Find::find({wanted => \&wanted}, '/');
       return 0;
+
+      sub wanted {
+        my ($dev,$ino,$mode,$nlink,$uid,$gid);
+
+        (($dev,$ino,$mode,$nlink,$uid,$gid) = lstat($_)) &&
+        -f _ &&
+        print("$name\n");
+      }
     },
     on_exit => sub {
       my ($pid, $exitcode, $dollarbang, $dollarat) = @_;
