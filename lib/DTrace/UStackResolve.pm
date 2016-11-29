@@ -1722,6 +1722,7 @@ sub _resolver {
     my $line = $1;
     if ($line =~ m/^(?<keyfile>[^:]+):0x(?<offset>[\da-fA-F]+)$/) {
       # Return direct lookup if available
+      # TODO: Add do_direct_lookups
       if ($do_direct_lookups and
           ($cached_result = $worker_direct_symbol_cache->get($line))) {
         $line = $cached_result;
@@ -1730,6 +1731,7 @@ sub _resolver {
         my ($keyfile, $offset) = ( $+{keyfile},
                                    Math::BigInt->from_hex( $+{offset} )->numify
                                  );
+        # TODO: Add lookup_type in proper scope
         if ($lookup_type == "RedBlack") {
           $line = _lookup_RB($line, $keyfile, $offset);
         } else {
@@ -1816,6 +1818,7 @@ sub _lookup_BinarySearch {
   my ($line,$keyfile,$offset) = @_;
 
   # Look up the symbol in the proper symtab sorted array via Binary Search
+  # TODO: substitute proper tree for worker_symtab_trees_href
   if ( defined( my $search_tree = $worker_symtab_trees_href->{$keyfile} ) ) {
     my $symtab_entry = $search_tree->lookup( $offset, LULTEQ );
     if (defined($symtab_entry)) {
