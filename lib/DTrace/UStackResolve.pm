@@ -26,7 +26,7 @@ use Future;
 use Future::Utils         qw( fmap );
 use List::Util            qw( first );
 use List::MoreUtils       qw( uniq );
-use List::BinarySearch    qw( binsearch_pos );
+use List::BinarySearch    qw( binsearch binsearch_pos );
 use Tree::RB              qw( LULTEQ );
 use CHI;
 use Digest::SHA1          qw( );
@@ -59,7 +59,7 @@ our %dtrace_types = (
 
 # NOTE: For use by IO::Async::Function resolver workers
 my ($worker_symtab_trees_href, $worker_direct_symbol_cache, $no_annotations,
-    $do_direct_lookups, $lookup_type, $obj);
+    $do_direct_lookups, $lookup_type, $obj, $debug_fh);
 
 #
 # TODO: This module assumes use of a Perl with 64-bit ints.  Check for this, or
@@ -1754,6 +1754,7 @@ sub _init_cache {
       max_size     => 8*1024,
       global       => 0,
     );
+  $debug_fh = IO::File->new("/tmp/debug.out", ">");
 }
 
 =method _resolver( $chunk_of_unresolved_lines )
@@ -1846,13 +1847,21 @@ sub _lookup_RB {
 sub _lookup_BinarySearch {
   my ($line,$keyfile,$offset) = @_;
 
+  $debug_fh->print("Looking up $line in $keyfile at $offset\n");
   # Look up the symbol in the proper symtab sorted array via Binary Search
   if ( defined( my $search_tree = $worker_symtab_trees_href->{$keyfile} ) ) {
     my $symtab_entry_idx =
-      binsearch_pos { $a <=> $b->[$FUNCTION_START_ADDRESS] } $offset,
-                                                             @$search_tree;
+      binsearch { ( ($a >=  $b->[$FUNCTION_START_ADDRESS]) and
+                    ($a <= ($b->[$FUNCTION_START_ADDRESS] +
+                            $b->[$FUNCTION_SIZE]) ) )
+                  ?  0 : ($a < $b->[$FUNCTION_START_ADDRESS])
+                  ? -1 : 1;
+                } $offset, @$search_tree;
     if (defined($symtab_entry_idx)) {
+      $debug_fh->print("symtab_entry_idx: $symtab_entry_idx\n");
       my $symtab_entry = $search_tree->[$symtab_entry_idx];
+      $debug_fh->print("symtab_entry: " . Dumper($symtab_entry));
+      # TODO: this is likely no longer needed
       if (($offset >= $symtab_entry->[$FUNCTION_START_ADDRESS] ) and
           ($offset <= ($symtab_entry->[$FUNCTION_START_ADDRESS] +
                        $symtab_entry->[$FUNCTION_SIZE]) ) ) {
