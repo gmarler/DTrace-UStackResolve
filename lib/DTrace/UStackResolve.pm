@@ -170,6 +170,17 @@ has 'do_direct_lookups' => (
 );
 
 #
+# If set, we'll be using any existing symbol table caches to resolve this file
+# TODO: If a PID is specified, we *could* try to build a cache from that, but it
+# has better be the same as the unresolved stack file was generated from...
+#
+has 'unresolved_file' => (
+  is          => 'ro',
+  isa         => 'Undef|Str',
+  default     => undef,
+);
+
+#
 # If set, resolved output will NOT contain any commentary after unresolvable
 # symbols
 #
@@ -311,7 +322,7 @@ has 'dtrace_type'     => (
   lazy        => 1,
 );
 
-sub _sanity_check_type {
+sub _sanity_check_dtrace_type {
   my ($self) = @_;
 
   confess "Invalid DTrace type specified: " . $self->dtrace_type
@@ -804,6 +815,10 @@ sub _populate_RedBlack_tree_cache {
 override BUILDARGS => sub {
   my $class = shift;
 
+  #
+  # TODO: make sure we don't have a conflict with unresolved_file
+  #
+  #
   if (exists($_[0]->{pids})) {
     # NOTE: The true absolute path to the executable is contained in procfs;
     #       however, the name the process knows itself as, and which it will
@@ -850,43 +865,55 @@ sub BUILD {
   # IO::Async::Function for all worker threads
   # TODO: This may no longer be needed
   $obj = $self;
-  # Ensure we have an output dir do put things in
+
+  # If the constructor was passed a valid 'unresolved_file', then we won't be
+  # running DTrace, and we're extremely unlikely be generating/caching symbol
+  # tables, instead preferring to use ones that have already been generated, and
+  # specified via the output_dir ctor arg.
+
+  # Ensure we have an output dir do put things in (and reach caches from)
   $self->output_dir;
   $self->datestamp;
   $self->_sanity_check_output_dir;
-  $self->preserve_tempfiles;
-  $self->user_stack_frames;
-  #say "Building D Script Unresolved Output Filename: " .
-  #  $self->dscript_unresolved_out;
-  $self->_sanity_check_type;
-  # Setup Async functions for later use
-  $self->pldd_func;
-  $self->sha1_func;
-  $self->gen_symtab_func;
-  $self->resolver_func;
-  $self->loop;
-  # TODO: Cleanup - Doesn't seem to be a builder here anymore
-  $self->pids;
-  $self->pid_starttime;
-  # Actually gather dynamic library paths
-  $self->dynamic_library_paths;
-  say "GENERATING SYMBOL TABLE";
-  $self->symbol_table;
-  $self->inode_cache;
-  $self->_populate_RedBlack_tree_cache;
-  $self->dtrace_type;
-  $self->dtrace_template_contents;
-  # Log to debug log
-  #say "GENERATE personal execname: " .
-  #  $self->personal_execname;
-  $self->personal_execname;
-  $self->dtrace_script_contents;
-  $self->dtrace_script_fh;
-  $self->dscript_unresolved_out_fh;
-  $self->dscript_err_fh;
-  $self->resolved_out_fh;
-  #
-  $self->_start_dtrace_capture;
+
+  # TODO: Sanity check unresolved_file is an existent path
+  $self->unresolved_file;
+
+  if ($self->unresolved_file) {
+    $self->resolver_func;
+    $self->loop;
+    $self->symbol_table_cache;
+  } else {
+    $self->preserve_tempfiles;
+    $self->user_stack_frames;
+    #say "Building D Script Unresolved Output Filename: " .
+    #  $self->dscript_unresolved_out;
+    $self->_sanity_check_dtrace_type;
+    # Setup Async functions for later use
+    $self->pldd_func;
+    $self->sha1_func;
+    $self->gen_symtab_func;
+    $self->resolver_func;
+    $self->loop;
+    # TODO: Cleanup - Doesn't seem to be a builder here anymore
+    $self->pids;
+    $self->pid_starttime;
+    # Actually gather dynamic library paths
+    $self->dynamic_library_paths;
+    say "GENERATING SYMBOL TABLE";
+    $self->symbol_table;
+    $self->inode_cache;
+    $self->_populate_RedBlack_tree_cache;
+    $self->dtrace_type;
+    $self->dtrace_template_contents;
+    $self->personal_execname;
+    $self->dtrace_script_contents;
+    $self->dtrace_script_fh;
+    $self->dscript_unresolved_out_fh;
+    $self->dscript_err_fh;
+    $self->resolved_out_fh;
+    $self->_start_dtrace_capture;
+  }
   $self->start_stack_resolve;
 }
 
@@ -1401,7 +1428,14 @@ sub start_stack_resolve {
   my ($self) = shift;
 
   $obj = $self; # for use in IO::Async::FileStream callback below
-  my ($unresolved_out) = $self->dscript_unresolved_out_fh->filename;
+  my ($unresolved_out);
+  # only defined if we're resolving a pre-existing unresolved file
+  my ($unresolved_file) = $self->unresolved_file;
+  if ($unresolved_file) {
+    $unresolved_out = $unresolved_file;
+  } else {
+    $unresolved_out = $self->dscript_unresolved_out_fh->filename;
+  }
   my ($resolved_fh)    = $self->resolved_out_fh;
   my ($loop)           = $self->loop;
   my ($max_buf_pulled) = 0;  # max length of buffer pulled off of file
