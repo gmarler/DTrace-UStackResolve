@@ -58,8 +58,9 @@ my ($pid) =
   );
 
 # Use the runtime arg to have the DTrace stop producing output in 10 seconds
-my $obj = DTrace::UStackResolve->new( { pids => [ $pid ],
-                                        runtime => '10sec',
+my $obj = DTrace::UStackResolve->new( { pids        => [ $pid ],
+                                        runtime     => '10sec',
+                                        lookup_type => 'BinarySearch',
                                       }
                                     );
 
