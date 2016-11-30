@@ -179,7 +179,7 @@ sub test_default_dtrace_type {
                                    runtime    => '1sec',
                                  } );
 
-  cmp_ok($obj->type, 'eq', "profile", "Default DTrace type is profile");
+  cmp_ok($obj->dtrace_type, 'eq', "profile", "Default DTrace type is profile");
   $obj->resolver_func->stop;
   $obj->sha1_func->stop;
   $obj->pldd_func->stop;
@@ -239,9 +239,9 @@ sub test_bad_dtrace_type {
 
   dies_ok(
     sub {
-      my $obj = $test->class_name->new( { pids       => [ $$ ],
-                                          runtime    => '1sec',
-                                          type       => 'bogus', } );
+      my $obj = $test->class_name->new( { pids        => [ $$ ],
+                                          runtime     => '1sec',
+                                          dtrace_type => 'bogus', } );
     },
     "Bad DTrace type is flagged"
   );

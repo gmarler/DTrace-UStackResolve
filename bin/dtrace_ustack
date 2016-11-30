@@ -11,7 +11,7 @@ use Getopt::Long;
 
 my ($execname, $output_dir, @pids, $pids_aref, $dtrace_type,
     $preserve_tempfiles, %x_options, $no_direct_lookups,
-    $no_annotations, $lookup_type, $runtime,
+    $no_annotations, $lookup_type, $runtime, $unresolved_file,
     $help, $ctor_args);
 
 GetOptions(
@@ -26,6 +26,7 @@ GetOptions(
            "no_direct_lookups",  \$no_direct_lookups,
            "lookup_type=s",      \$lookup_type,
            "runtime=s",          \$runtime,
+           "unresolved_file=s",  \$unresolved_file,
            "h|help",             \$help,
        )
          or die("Error in command line arguments");
@@ -34,7 +35,7 @@ GetOptions(
 
 my $usage = q'
 Usage:
-    dtrace_ustack [OPTIONS] --pids PID1,PID2,...
+    dtrace_ustack [OPTIONS] [--pids PID1,...] | [--unresolved_file=...]
 
 Description:
     Allows a set of canned DTrace profiles that generate user stacks, which
@@ -44,6 +45,22 @@ Description:
 Options:
     --output_dir=<DIR>    - Directory to place all output files generated, like
                             the resolved user stack output.
+    --no_annotations      - Normally, if a symbol cannot be resolved, the
+                            reason why is annotated on the same line.  This
+                            makes it difficult to coalesce the stacks for
+                            later visualization, so this option exists.
+    --no_direct_lookups   - Disables an extra optimization of keeping a small
+                            cache of the most common lookups, so the line can be
+                            directly looked up in a hash.
+                            Default: (0 | false)
+    --lookup_type=<X>     - Choose the lookup type.
+                            Options: RBTree BinarySearch
+                            Default: RBTree
+
+    By default, this utility will launch DTrace and resolve the stacks in its
+    output, the particulars of which can be modified by manipulating the
+    following arguments:
+
     --dtrace_type=<type>  - The type of DTrace profile to perform.  At present,
                             the following are supported:
                             - profile (the default): on-CPU stack profiles
@@ -64,20 +81,17 @@ Options:
                             - cleanrate
                             - switchrate
                             - dynvarsize
-    --no_annotations      - Normally, if a symbol cannot be resolved, the
-                            reason why is annotated on the same line.  This
-                            makes it difficult to coalesce the stacks for
-                            later visualization, so this option exists.
-    --no_direct_lookups   - Disables an extra optimization of keeping a small
-                            cache of the most common lookups, so the line can be
-                            directly looked up in a hash.
-                            Default: (0 | false)
-    --lookup_type=<X>     - Choose the lookup type.
-                            Options: RBTree BinarySearch
-                            Default: RBTree
     --runtime=<time>      - Allows specifying how long the DTrace script should
                             run before it exits.
                             Default: 1hour
+
+    If instead, you have both:
+    - A previously generated unresolved set of stacks
+    - The symbol table caches for the related process(es)
+
+    You can feed in the unresolved stack file via this parameter:
+
+    --unresolved_file=<file>
 ';
 
 if (defined($help)) {
@@ -127,6 +141,10 @@ if (defined($preserve_tempfiles)) {
 
 if (defined($runtime)) {
   $ctor_args->{runtime} = $runtime;
+}
+
+if (defined($unresolved_file)) {
+  $ctor_args->{unresolved_file} = $unresolved_file;
 }
 
 foreach my $key (keys %x_options) {
