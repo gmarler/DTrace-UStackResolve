@@ -19,7 +19,7 @@ GetOptions(
            #"execname=s", \$execname,
            "output_dir=s",       \$output_dir,
            "pids=s",             \@pids,
-           "type=s",             \$dtrace_type,
+           "dtrace_type=s",      \$dtrace_type,
            "preserve_tempfiles", \$preserve_tempfiles,
            "x=s",                \%x_options,
            "no_annotations",     \$no_annotations,
@@ -44,7 +44,7 @@ Description:
 Options:
     --output_dir=<DIR>    - Directory to place all output files generated, like
                             the resolved user stack output.
-    --type=<DTrace type>  - The type of DTrace profile to perform.  At present,
+    --dtrace_type=<type>  - The type of DTrace profile to perform.  At present,
                             the following are supported:
                             - profile (the default): on-CPU stack profiles
                             - off-cpu              : off-CPU stack profiles
@@ -118,7 +118,7 @@ if (defined($output_dir)) {
 }
 
 if (defined($dtrace_type)) {
-  $ctor_args->{type} = $dtrace_type;
+  $ctor_args->{dtrace_type} = $dtrace_type;
 }
 
 if (defined($preserve_tempfiles)) {

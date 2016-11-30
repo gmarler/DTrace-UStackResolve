@@ -261,7 +261,7 @@ The constructor takes the following attributes:
                            for, OR, the PID of interest.
                            One is required, there is no default.
 
-* type:                    The type of DTrace to run, from this list:
+* dtrace_type:             The type of DTrace to run, from this list:
                            profile
                            off-cpu
 
@@ -303,7 +303,7 @@ has 'tid'      => (
   default     => undef,
 );
 
-has 'type'     => (
+has 'dtrace_type'     => (
   is          => 'ro',
   isa         => 'Str',
   # TODO: Add a constraint to the available scripts
@@ -314,8 +314,8 @@ has 'type'     => (
 sub _sanity_check_type {
   my ($self) = @_;
 
-  confess "Invalid DTrace type specified: " . $self->type
-    unless (exists($dtrace_types{$self->type}));
+  confess "Invalid DTrace type specified: " . $self->dtrace_type
+    unless (exists($dtrace_types{$self->dtrace_type}));
 }
 
 # Flag to know when DTrace has exited, so we can know that the unresolved output
@@ -379,7 +379,7 @@ has 'dscript_unresolved_out_fh' => (
     sub {
       my ($self) = shift;
       my ($output_dir)    = $self->output_dir;
-      my ($dtrace_type)   = $self->type;
+      my ($dtrace_type)   = $self->dtrace_type;
       my ($datestamp)     = $self->datestamp;
 
       confess "output_dir not set yet"
@@ -406,7 +406,7 @@ has 'dscript_err_fh' => (
     sub {
       my ($self) = shift;
       my ($output_dir)    = $self->output_dir;
-      my ($dtrace_type)   = $self->type;
+      my ($dtrace_type)   = $self->dtrace_type;
       my ($datestamp)     = $self->datestamp;
 
       confess "output_dir not set yet"
@@ -440,7 +440,7 @@ sub _build_resolved_out_fh {
   #       Maybe later we can split these out, if we care, and produce
   #       an array of resolved output files to write into
   my ($output_dir)    = $self->output_dir;
-  my ($dtrace_type)   = $self->type;
+  my ($dtrace_type)   = $self->dtrace_type;
   my ($datestamp)     = $self->datestamp;
 
   confess "output_dir not set yet"
@@ -874,7 +874,7 @@ sub BUILD {
   $self->symbol_table;
   $self->inode_cache;
   $self->_populate_RedBlack_tree_cache;
-  $self->type;
+  $self->dtrace_type;
   $self->dtrace_template_contents;
   # Log to debug log
   #say "GENERATE personal execname: " .
@@ -1159,7 +1159,7 @@ sub _build_symbol_table {
 
 =head1 SELECTING TYPE OF DTrace SCRIPT
 
-Specifying the <C>type<C> attribute will allow selection of the kind of DTrace
+Specifying the <C>dtrace_type<C> attribute will allow selection of the kind of DTrace
 to script to activate.
 
 =for :list
@@ -1177,17 +1177,17 @@ to script to activate.
 =method _build_dtrace_template_contents
 
 Private function that selects the most appropriate DTrace script template from
-those available, based on <C>type<C> attribute, among others, and returns it's
-raw contents for later processing
+those available, based on <C>dtrace_type<C> attribute, among others, and returns
+its raw contents for later processing
 
 =cut
 
 sub _build_dtrace_template_contents {
   my ($self) = shift;
 
-  my ($type) = $self->type;
-  say "DTrace Type: $type";
-  my $template = $dtrace_types{$type};
+  my ($dtrace_type) = $self->dtrace_type;
+  say "DTrace Type: $dtrace_type";
+  my $template = $dtrace_types{$dtrace_type};
 
   # Log to debug log
   #say "DIST FILE:   " . dist_file('DTrace-UStackResolve', $template);
