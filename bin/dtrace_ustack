@@ -10,7 +10,8 @@ use DTrace::UStackResolve;
 use Getopt::Long;
 
 my ($execname, $output_dir, @pids, $pids_aref, $dtrace_type,
-    $preserve_tempfiles, %x_options, $no_annotations, $runtime,
+    $preserve_tempfiles, %x_options, $do_direct_lookups,
+    $no_annotations, $runtime,
     $help, $ctor_args);
 
 GetOptions(
@@ -22,6 +23,7 @@ GetOptions(
            "preserve_tempfiles", \$preserve_tempfiles,
            "x=s",                \%x_options,
            "no_annotations",     \$no_annotations,
+           "do_direct_lookups",  \$do_direct_lookups,
            "runtime=s",          \$runtime,
            "h|help",             \$help,
        )
@@ -62,6 +64,10 @@ Options:
                             reason why is annotated on the same line.  This
                             makes it difficult to coalesce the stacks for
                             later visualization, so this option exists.
+    --do_direct_lookups   - Enables an extra optimization of keeping a small
+                            cache of the most common lookups, so the line can be
+                            directly looked up in a hash.
+                            Default: (1 | true)
     --runtime=<time>      - Allows specifying how long the DTrace script should
                             run before it exits.
                             Default: 1hour
@@ -87,6 +93,10 @@ unless (exists($ctor_args->{pids})) {
 
 if (defined($no_annotations)) {
   $ctor_args->{no_annotations} = 1;
+}
+
+if (defined($do_direct_lookups)) {
+  $ctor_args->{do_direct_lookups} = 1;
 }
 
 if (defined($output_dir)) {

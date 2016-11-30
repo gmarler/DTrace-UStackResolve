@@ -158,6 +158,16 @@ has 'preserve_tempfiles' => (
 );
 
 #
+# If set (the default), use an additional optimization of a direct lookup cache
+# for the most common <line> => <resolved symbol+offset> entries
+#
+has 'do_direct_lookups' => (
+  is          => 'ro',
+  isa         => 'Bool',
+  default     => 1,
+);
+
+#
 # If set, resolved output will NOT contain any commentary after unresolvable
 # symbols
 #
