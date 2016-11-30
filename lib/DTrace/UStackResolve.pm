@@ -1849,7 +1849,8 @@ sub _lookup_BinarySearch {
   # Look up the symbol in the proper symtab sorted array via Binary Search
   if ( defined( my $search_tree = $worker_symtab_trees_href->{$keyfile} ) ) {
     my $symtab_entry_idx =
-      binsearch_pos { $a <=> $b->[$FUNCTION_START_ADDRESS] } $offset @$search_tree;
+      binsearch_pos { $a <=> $b->[$FUNCTION_START_ADDRESS] } $offset,
+                                                             @$search_tree;
     if (defined($symtab_entry_idx)) {
       my $symtab_entry = $search_tree->[$symtab_entry_idx];
       if (($offset >= $symtab_entry->[$FUNCTION_START_ADDRESS] ) and
