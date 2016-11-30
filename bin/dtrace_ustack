@@ -23,7 +23,7 @@ GetOptions(
            "preserve_tempfiles", \$preserve_tempfiles,
            "x=s",                \%x_options,
            "no_annotations",     \$no_annotations,
-           "do_direct_lookups",  \$do_direct_lookups,
+           "no_direct_lookups",  \$no_direct_lookups,
            "lookup_type=s",      \$lookup_type,
            "runtime=s",          \$runtime,
            "h|help",             \$help,
@@ -65,10 +65,10 @@ Options:
                             reason why is annotated on the same line.  This
                             makes it difficult to coalesce the stacks for
                             later visualization, so this option exists.
-    --do_direct_lookups   - Enables an extra optimization of keeping a small
+    --no_direct_lookups   - Disables an extra optimization of keeping a small
                             cache of the most common lookups, so the line can be
                             directly looked up in a hash.
-                            Default: (1 | true)
+                            Default: (0 | false)
     --lookup_type=<X>     - Choose the lookup type.
                             Options: RBTree BinarySearch
                             Default: RBTree
@@ -99,7 +99,10 @@ if (defined($no_annotations)) {
   $ctor_args->{no_annotations} = 1;
 }
 
-if (defined($do_direct_lookups)) {
+if (defined($no_direct_lookups)) {
+  $ctor_args->{do_direct_lookups} = 0;
+} else {
+  # Not really needed - it defaults to 1 anyway...
   $ctor_args->{do_direct_lookups} = 1;
 }
 
