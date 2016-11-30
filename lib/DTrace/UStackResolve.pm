@@ -185,8 +185,8 @@ has 'no_annotations' => (
 #
 has 'lookup_type' => (
   is          => 'ro',
-  isa         => LookupType,
-  default     => RBTree,
+  isa         => 'LookupType',
+  default     => 'RBTree',
 );
 
 has 'datestamp' => (
@@ -1756,7 +1756,7 @@ sub _resolver {
         my ($keyfile, $offset) = ( $+{keyfile},
                                    Math::BigInt->from_hex( $+{offset} )->numify
                                  );
-        if ($lookup_type == RBTree) {
+        if ($lookup_type eq "RBTree") {
           $line = _lookup_RB($line, $keyfile, $offset);
         } else {
           $line = _lookup_BinarySearch($line, $keyfile, $offset);
@@ -1817,7 +1817,10 @@ sub _lookup_RB {
                   $offset - $symtab_entry->[$FUNCTION_START_ADDRESS]);
         # If we got here, we have something to store in the direct symbol
         # lookup cache
-        $worker_direct_symbol_cache->set($line,$resolved);
+        # TODO: Predicate this on $do_direct_lookups
+        if ($do_direct_lookups) {
+          $worker_direct_symbol_cache->set($line,$resolved);
+        }
         $line =~ s/^(?<keyfile>[^:]+):0x(?<offset>[\da-fA-F]+)$/${resolved}/;
       } else {
         if (not $no_annotations) {
@@ -1836,6 +1839,8 @@ sub _lookup_RB {
       $line .= " [NO SYMBOL TABLE FOR $keyfile]";
     }
   }
+
+  return $line;
 }
 
 sub _lookup_BinarySearch {
@@ -1855,7 +1860,9 @@ sub _lookup_BinarySearch {
                   $offset - $symtab_entry->[$FUNCTION_START_ADDRESS]);
         # If we got here, we have something to store in the direct symbol
         # lookup cache
-        $worker_direct_symbol_cache->set($line,$resolved);
+        if ($do_direct_lookups) {
+          $worker_direct_symbol_cache->set($line,$resolved);
+        }
         $line =~ s/^(?<keyfile>[^:]+):0x(?<offset>[\da-fA-F]+)$/${resolved}/;
       } else {
         if (not $no_annotations) {
@@ -1874,6 +1881,8 @@ sub _lookup_BinarySearch {
       $line .= " [NO SYMBOL TABLE FOR $keyfile]";
     }
   }
+
+  return $line;
 }
 
 =head1 FUNCTIONS
