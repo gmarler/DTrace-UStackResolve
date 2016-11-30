@@ -10,7 +10,7 @@ use DTrace::UStackResolve;
 use Getopt::Long;
 
 my ($execname, $output_dir, @pids, $pids_aref, $dtrace_type,
-    $preserve_tempfiles, %x_options, $do_direct_lookups,
+    $preserve_tempfiles, %x_options, $no_direct_lookups,
     $no_annotations, $lookup_type, $runtime,
     $help, $ctor_args);
 
