@@ -1,6 +1,8 @@
 Revision history for {{$dist->name}}
 
 {{$NEXT}}
+- Add flag to allow disabling the direct lookup cache optimization
+- Add BinarySearch to lookup types
 
 0.022     2016-11-19 10:03:06-05:00 America/New_York
 - Eliminate non-core perl modules from new.t test
