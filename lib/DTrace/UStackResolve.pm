@@ -1847,7 +1847,6 @@ sub _lookup_RB {
 sub _lookup_BinarySearch {
   my ($line,$keyfile,$offset) = @_;
 
-  $debug_fh->print("Looking up $line in $keyfile at $offset\n");
   # Look up the symbol in the proper symtab sorted array via Binary Search
   if ( defined( my $search_tree = $worker_symtab_trees_href->{$keyfile} ) ) {
     my $symtab_entry_idx =
@@ -1858,9 +1857,7 @@ sub _lookup_BinarySearch {
                   ? -1 : 1;
                 } $offset, @$search_tree;
     if (defined($symtab_entry_idx)) {
-      $debug_fh->print("symtab_entry_idx: $symtab_entry_idx\n");
       my $symtab_entry = $search_tree->[$symtab_entry_idx];
-      $debug_fh->print("symtab_entry: " . Dumper($symtab_entry));
       # TODO: this is likely no longer needed
       if (($offset >= $symtab_entry->[$FUNCTION_START_ADDRESS] ) and
           ($offset <= ($symtab_entry->[$FUNCTION_START_ADDRESS] +
