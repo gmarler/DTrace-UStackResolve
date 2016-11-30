@@ -59,7 +59,7 @@ our %dtrace_types = (
 
 # NOTE: For use by IO::Async::Function resolver workers
 my ($worker_symtab_trees_href, $worker_direct_symbol_cache, $no_annotations,
-    $obj);
+    $do_direct_lookups, $obj);
 
 #
 # TODO: This module assumes use of a Perl with 64-bit ints.  Check for this, or
@@ -1705,7 +1705,9 @@ sub _init_cache {
   $worker_symtab_trees_href =
     $RB_cache->get_multi_hashref($RB_keys_aref);
   # Determine if annotations will be printed for non-resolvable symbols
-  $no_annotations = $obj->no_annotations;
+  $no_annotations    = $obj->no_annotations;
+  # ... and whether direct lookups are enabled
+  $do_direct_lookups = $obj->do_direct_lookups;
 }
 
 =method _resolver( $chunk_of_unresolved_lines )
@@ -1731,8 +1733,7 @@ sub _resolver {
   while ( $chunk =~ s/^(.*)\n// ) {
     my $line = $1;
     if ($line =~ m/^(?<keyfile>[^:]+):0x(?<offset>[\da-fA-F]+)$/) {
-      # Return direct lookup if available
-      # TODO: Add do_direct_lookups
+      # Return direct lookup if enabled and available
       if ($do_direct_lookups and
           ($cached_result = $worker_direct_symbol_cache->get($line))) {
         $line = $cached_result;
