@@ -54,7 +54,7 @@ sched:::on-cpu
 
 tick-1sec
 {
-  printf("\n%Y\n",walltimestamp);
+  printf("\n%Y [%u]\n",walltimestamp,walltimestamp);
 
   printf("%-32s %5s %-3s %-12s\n","SOBJ OR PREEMPTED","PID","TID","LATENCY(ns)");
   printa("%-32s %5d %-3d %-@12u %k %k\n",@);

@@ -24,7 +24,7 @@ sched:::on-cpu
 
 tick-1sec
 {
-  printf("\n%Y\n",walltimestamp);
+  printf("\n%Y [%u]\n",walltimestamp,walltimestamp);
 
   printa("%k %k %@12u\n",@);
 

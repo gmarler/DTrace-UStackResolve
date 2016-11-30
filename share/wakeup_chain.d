@@ -31,7 +31,7 @@ sched:::wakeup
 
 tick-1sec
 {
-  printf("\n%Y\n",walltimestamp);
+  printf("\n%Y [%u]\n",walltimestamp,walltimestamp);
 
   printa("\n%s-%d/%d-%x%k-%k%s-%d/%d\n%@d\n",@);
 

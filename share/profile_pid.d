@@ -17,7 +17,7 @@ profile-297Hz
 
 tick-1sec
 {
-  printf("\n%Y\n",walltimestamp);
+  printf("\n%Y [%u]\n",walltimestamp,walltimestamp);
 
   /* We prefix with PID:<pid> so that we can determine which PID we're working
    * on, on the off chance that individual PIDs have set LD_LIBRARY_PATH or
