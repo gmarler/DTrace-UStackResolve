@@ -109,6 +109,8 @@ subtype 'CHI',
   as 'Object',
   where { blessed($_) =~ /^CHI::/ };
 
+enum LookupType => [qw( RBTree BinarySearch )];
+
 # Class Attribute Constants
 class_has 'LDD' => (
   init_arg    => undef,
@@ -183,7 +185,8 @@ has 'no_annotations' => (
 #
 has 'lookup_type' => (
   is          => 'ro',
-  default     => RedBlack,
+  isa         => LookupType,
+  default     => RBTree,
 );
 
 has 'datestamp' => (
@@ -1717,6 +1720,8 @@ sub _init_cache {
   $no_annotations    = $obj->no_annotations;
   # ... and whether direct lookups are enabled
   $do_direct_lookups = $obj->do_direct_lookups;
+  # ... and what the lookup type is
+  $lookup_type       = $obj->lookup_type;
 }
 
 =method _resolver( $chunk_of_unresolved_lines )
@@ -1751,8 +1756,7 @@ sub _resolver {
         my ($keyfile, $offset) = ( $+{keyfile},
                                    Math::BigInt->from_hex( $+{offset} )->numify
                                  );
-        # TODO: Add lookup_type in proper scope
-        if ($lookup_type == "RedBlack") {
+        if ($lookup_type == RBTree) {
           $line = _lookup_RB($line, $keyfile, $offset);
         } else {
           $line = _lookup_BinarySearch($line, $keyfile, $offset);

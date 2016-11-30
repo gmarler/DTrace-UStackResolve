@@ -11,7 +11,7 @@ use Getopt::Long;
 
 my ($execname, $output_dir, @pids, $pids_aref, $dtrace_type,
     $preserve_tempfiles, %x_options, $do_direct_lookups,
-    $no_annotations, $runtime,
+    $no_annotations, $lookup_type, $runtime,
     $help, $ctor_args);
 
 GetOptions(
@@ -24,6 +24,7 @@ GetOptions(
            "x=s",                \%x_options,
            "no_annotations",     \$no_annotations,
            "do_direct_lookups",  \$do_direct_lookups,
+           "lookup_type=s",      \$lookup_type,
            "runtime=s",          \$runtime,
            "h|help",             \$help,
        )
@@ -68,6 +69,9 @@ Options:
                             cache of the most common lookups, so the line can be
                             directly looked up in a hash.
                             Default: (1 | true)
+    --lookup_type=<X>     - Choose the lookup type.
+                            Options: RBTree BinarySearch
+                            Default: RBTree
     --runtime=<time>      - Allows specifying how long the DTrace script should
                             run before it exits.
                             Default: 1hour
@@ -97,6 +101,10 @@ if (defined($no_annotations)) {
 
 if (defined($do_direct_lookups)) {
   $ctor_args->{do_direct_lookups} = 1;
+}
+
+if (defined($lookup_type)) {
+  $ctor_args->{lookup_type} = $lookup_type;
 }
 
 if (defined($output_dir)) {
