@@ -1,6 +1,8 @@
 Revision history for {{$dist->name}}
 
 {{$NEXT}}
+
+0.023     2016-11-30 11:24:18-05:00 America/New_York
 - Add flag to allow disabling the direct lookup cache optimization
 - Add BinarySearch to lookup types
 
