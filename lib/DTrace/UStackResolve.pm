@@ -1761,38 +1761,6 @@ sub _resolver {
         } else {
           $line = _lookup_BinarySearch($line, $keyfile, $offset);
         }
-
-        #if ( defined( my $search_tree = $worker_symtab_trees_href->{$keyfile} ) ) {
-        #  my $symtab_entry = $search_tree->lookup( $offset, LULTEQ );
-        #  if (defined($symtab_entry)) {
-        #    if (($offset >= $symtab_entry->[$FUNCTION_START_ADDRESS] ) and
-        #        ($offset <= ($symtab_entry->[$FUNCTION_START_ADDRESS] +
-        #                     $symtab_entry->[$FUNCTION_SIZE]) ) ) {
-        #      my $resolved =
-        #        sprintf("%s+0x%x",
-        #                $symtab_entry->[$FUNCTION_NAME],
-        #                $offset - $symtab_entry->[$FUNCTION_START_ADDRESS]);
-        #      # If we got here, we have something to store in the direct symbol
-        #      # lookup cache
-        #      $worker_direct_symbol_cache->set($line,$resolved);
-        #      $line =~ s/^(?<keyfile>[^:]+):0x(?<offset>[\da-fA-F]+)$/${resolved}/;
-        #    } else {
-        #      if (not $no_annotations) {
-        #        $line .= " [SYMBOL TABLE LOOKUP FAILED - POTENTIAL MATCH FAILED]";
-        #      }
-        #    }
-        #  } else {
-        #    if (not $no_annotations) {
-        #      $line .= " [SYMBOL TABLE LOOKUP FAILED - NOT EVEN A POTENTIAL MATCH]";
-        #    }
-        #    #say "FAILED TO LOOKUP ENTRY FOR: $keyfile";
-        #    #confess "WHAT THE HECK HAPPENED???";
-        #  }
-        #} else {
-        #  if (not $no_annotations) {
-        #    $line .= " [NO SYMBOL TABLE FOR $keyfile]";
-        #  }
-        #}
       }
     }
     $resolved_chunk .= "$line\n";
