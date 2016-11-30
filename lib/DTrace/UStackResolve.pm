@@ -59,7 +59,7 @@ our %dtrace_types = (
 
 # NOTE: For use by IO::Async::Function resolver workers
 my ($worker_symtab_trees_href, $worker_direct_symbol_cache, $no_annotations,
-    $do_direct_lookups, $obj);
+    $do_direct_lookups, $lookup_type, $obj);
 
 #
 # TODO: This module assumes use of a Perl with 64-bit ints.  Check for this, or
@@ -175,6 +175,15 @@ has 'no_annotations' => (
   is          => 'ro',
   isa         => 'Bool',
   default     => 0,
+);
+
+#
+# the type of lookup desired - defaults to RedBlack, but can also be
+# BinarySearch
+#
+has 'lookup_type' => (
+  is          => 'ro',
+  default     => RedBlack,
 );
 
 has 'datestamp' => (
