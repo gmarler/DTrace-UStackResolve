@@ -458,7 +458,7 @@ sub _build_resolved_out_fh {
   confess "output_dir not set yet"
     if not defined($output_dir);
 
-  my ($resolved_fname, $resolved_fh);
+  my ($resolved_fname);
   # If we're not resolving an existing unresolved file, gather data about the
   # process we're interested in
   if (not defined($unresolved_file)) {
@@ -468,9 +468,11 @@ sub _build_resolved_out_fh {
       File::Spec->catfile( $output_dir,
                            "$execname-${dtrace_type}.RESOLVED-${datestamp}");
   } else {
+    # We'll be resolving a file that already exists
     $resolved_fname      =
       File::Spec->catfile( $output_dir,
-                           "${unresolved_file}.RESOLVED-${datestamp}");
+                           basename($unresolved_file) .
+                           ".RESOLVED-${datestamp}" );
   }
 
   my ($resolved_fh)    = IO::File->new("$resolved_fname", ">>") or
