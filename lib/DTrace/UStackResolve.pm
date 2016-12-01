@@ -1504,8 +1504,6 @@ sub start_stack_resolve {
 
           my (@resolved_chunks) = $f->get;
           foreach my $chunk (@resolved_chunks) {
-            my $inode = ($resolved_fh->stat)[1];
-            say $inode;
             $resolved_fh->print($chunk);
           }
 
