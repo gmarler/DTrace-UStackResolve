@@ -1476,55 +1476,106 @@ sub start_stack_resolve {
   # TODO: May want to think about changing this from a FileStream to just a
   #       Stream.  Keeping the FileStream for the present just for ease of
   #       debugging in the case where a stack resolution fails.
-  my $filestream = IO::Async::FileStream->new(
-    read_handle => $dtrace_unresolved_fh,
-    read_len    => 1024 * 1024,  # 1 MB rather than 8 KB max reads
-    read_all    => 1,
+  my ($filestream);
+  if ($unresolved_file) {
+    $filestream = IO::Async::Stream->new(
+      read_handle => $dtrace_unresolved_fh,
+      read_len    => 1024 * 1024,  # 1 MB rather than 8 KB max reads
+      read_all    => 1,
 
-    on_read => sub {
-      my ( $self, $buffref, $eof ) = @_;
+      on_read => sub {
+        my ( $self, $buffref, $eof ) = @_;
 
-      #while ( $$buffref =~ s/^(.*)\n// ) {
-      while ( $$buffref =~ s/(.+\n)//smx ) {
-        $max_buf_pulled = (length($1) > $max_buf_pulled) ?
-                           length($1)                    :
-                           $max_buf_pulled;
-        my (@chunks);
-        my $c = $1;
-        @chunks = $c =~ m{ ( (?: ^ [^\n]+? \n|^\n) {1,500} ) }gsmx;
+        #while ( $$buffref =~ s/^(.*)\n// ) {
+        while ( $$buffref =~ s/(.+\n)//smx ) {
+          $max_buf_pulled = (length($1) > $max_buf_pulled) ?
+                             length($1)                    :
+                             $max_buf_pulled;
+          my (@chunks);
+          my $c = $1;
+          @chunks = $c =~ m{ ( (?: ^ [^\n]+? \n|^\n) {1,500} ) }gsmx;
 
-        my $f = fmap {
-          my ($chunk) = @_;
-          $resolver_func->call( args => [ $chunk ] );
-        } foreach => \@chunks,
-          concurrent => 8;
+          my $f = fmap {
+            my ($chunk) = @_;
+            $resolver_func->call( args => [ $chunk ] );
+          } foreach => \@chunks,
+            concurrent => 8;
 
-        my (@resolved_chunks) = $f->get;
-        foreach my $chunk (@resolved_chunks) {
-          $resolved_fh->print($chunk);
+          my (@resolved_chunks) = $f->get;
+          foreach my $chunk (@resolved_chunks) {
+            $resolved_fh->print($chunk);
+          }
+
         }
 
-      }
-
-      # For a FileStream, $eof will be set every time we reach the end of the
-      # file, but we'll continue to watch for changes, UNLESS we know the DTrace
-      # script that's producing output into the UNRESOLVED file has exited, in
-      # which case we know we're *really* done.
-      if ($eof) {
-        if ($obj->dtrace_has_exited) {
+        # 
+        # For an unresolved file, we'll just quit when we hit EOF, as it's not
+        # goign to grow any larger or change in any way.
+        #
+        if ($eof) {
           say "MAX BUFFER PULLED FROM FILE: $max_buf_pulled";
-          say "DTrace Script has exited, and read everything it produced - EXITING";
           $resolved_fh->close;
           # Shut down worker processes/threads
           $resolver_func->stop;
           # NOTE: Added once we moved to IO::Async::Function
           $loop->stop;
         }
-      }
 
-      return 0;
-    },
-  );
+        return 0;
+      },
+    );
+
+  } else {
+    $filestream = IO::Async::FileStream->new(
+      read_handle => $dtrace_unresolved_fh,
+      read_len    => 1024 * 1024,  # 1 MB rather than 8 KB max reads
+      read_all    => 1,
+
+      on_read => sub {
+        my ( $self, $buffref, $eof ) = @_;
+
+        #while ( $$buffref =~ s/^(.*)\n// ) {
+        while ( $$buffref =~ s/(.+\n)//smx ) {
+          $max_buf_pulled = (length($1) > $max_buf_pulled) ?
+                             length($1)                    :
+                             $max_buf_pulled;
+          my (@chunks);
+          my $c = $1;
+          @chunks = $c =~ m{ ( (?: ^ [^\n]+? \n|^\n) {1,500} ) }gsmx;
+
+          my $f = fmap {
+            my ($chunk) = @_;
+            $resolver_func->call( args => [ $chunk ] );
+          } foreach => \@chunks,
+            concurrent => 8;
+
+          my (@resolved_chunks) = $f->get;
+          foreach my $chunk (@resolved_chunks) {
+            $resolved_fh->print($chunk);
+          }
+
+        }
+
+        # For a FileStream, $eof will be set every time we reach the end of the
+        # file, but we'll continue to watch for changes, UNLESS we know the DTrace
+        # script that's producing output into the UNRESOLVED file has exited, in
+        # which case we know we're *really* done.
+        if ($eof) {
+          if ($obj->dtrace_has_exited) {
+            say "MAX BUFFER PULLED FROM FILE: $max_buf_pulled";
+            say "DTrace Script has exited, and read everything it produced - EXITING";
+            $resolved_fh->close;
+            # Shut down worker processes/threads
+            $resolver_func->stop;
+            # NOTE: Added once we moved to IO::Async::Function
+            $loop->stop;
+          }
+        }
+
+        return 0;
+      },
+    );
+  }
 
   $loop->add( $filestream );
 }
