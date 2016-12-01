@@ -107,10 +107,6 @@ if (defined($execname)) {
   $ctor_args->{pids}      = $pids_aref;
 }
 
-unless (exists($ctor_args->{pids})) {
-  say $usage;
-  exit(1);
-}
 
 if (defined($no_annotations)) {
   $ctor_args->{no_annotations} = 1;
@@ -149,6 +145,14 @@ if (defined($unresolved_file)) {
 
 foreach my $key (keys %x_options) {
   $ctor_args->{$key} = $x_options{$key};
+}
+
+#
+# If the argument combination doesn't make sense, exit here
+unless (exists($ctor_args->{pids}) or
+        exists($ctor_args->{unresolved_file})) {
+  say $usage;
+  exit(1);
 }
 
 

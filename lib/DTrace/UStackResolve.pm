@@ -450,18 +450,29 @@ sub _build_resolved_out_fh {
   # NOTE: Since we can have multiple PIDs, just take the first one
   #       Maybe later we can split these out, if we care, and produce
   #       an array of resolved output files to write into
-  my ($output_dir)    = $self->output_dir;
-  my ($dtrace_type)   = $self->dtrace_type;
-  my ($datestamp)     = $self->datestamp;
+  my ($output_dir)      = $self->output_dir;
+  my ($dtrace_type)     = $self->dtrace_type;
+  my ($datestamp)       = $self->datestamp;
+  my ($unresolved_file) = $self->unresolved_file;
 
   confess "output_dir not set yet"
     if not defined($output_dir);
 
-  my ($pid)            = $self->pids->[0];
-  my ($execname)       = $self->personal_execname;
-  my ($resolved_fname) =
-    File::Spec->catfile( $output_dir,
-                         "$execname-${dtrace_type}.RESOLVED-${datestamp}");
+  my ($resolved_fname, $resolved_fh);
+  # If we're not resolving an existing unresolved file, gather data about the
+  # process we're interested in
+  if (not defined($unresolved_file)) {
+    my ($pid)            = $self->pids->[0];
+    my ($execname)       = $self->personal_execname;
+    $resolved_fname      =
+      File::Spec->catfile( $output_dir,
+                           "$execname-${dtrace_type}.RESOLVED-${datestamp}");
+  } else {
+    $resolved_fname      =
+      File::Spec->catfile( $output_dir,
+                           "${unresolved_file}.RESOLVED-${datestamp}");
+  }
+
   my ($resolved_fh)    = IO::File->new("$resolved_fname", ">>") or
     die "Unable to open $resolved_fname for writing";
 
