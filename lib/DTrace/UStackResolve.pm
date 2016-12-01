@@ -896,6 +896,7 @@ sub BUILD {
     $self->resolver_func;
     $self->loop;
     $self->symbol_table_cache;
+    $self->resolved_out_fh;
   } else {
     $self->preserve_tempfiles;
     $self->user_stack_frames;
@@ -1444,7 +1445,8 @@ sub start_stack_resolve {
   my ($unresolved_out);
   # only defined if we're resolving a pre-existing unresolved file
   my ($unresolved_file) = $self->unresolved_file;
-  if ($unresolved_file) {
+  say "UNRESOLVED FILE: $unresolved_file";
+  if (defined($unresolved_file)) {
     $unresolved_out = $unresolved_file;
   } else {
     $unresolved_out = $self->dscript_unresolved_out_fh->filename;
@@ -1471,22 +1473,22 @@ sub start_stack_resolve {
   # another Channel to be written out to the resolved file.
   #
   # This above is all done via an IO::Async::Function automatically
-  my $dtrace_unresolved_fh  = IO::File->new($unresolved_out, "<");
+  my $dtrace_unresolved_fh  = IO::File->new($unresolved_out, "<") or
+    croak "Unable to open unresolved file $unresolved_out: $!";
 
   # TODO: May want to think about changing this from a FileStream to just a
   #       Stream.  Keeping the FileStream for the present just for ease of
   #       debugging in the case where a stack resolution fails.
   my ($filestream);
-  if ($unresolved_file) {
+  if (defined($unresolved_file)) {
     $filestream = IO::Async::Stream->new(
       read_handle => $dtrace_unresolved_fh,
       read_len    => 1024 * 1024,  # 1 MB rather than 8 KB max reads
-      read_all    => 1,
+      #read_all    => 1,
 
       on_read => sub {
         my ( $self, $buffref, $eof ) = @_;
 
-        #while ( $$buffref =~ s/^(.*)\n// ) {
         while ( $$buffref =~ s/(.+\n)//smx ) {
           $max_buf_pulled = (length($1) > $max_buf_pulled) ?
                              length($1)                    :
@@ -1503,6 +1505,8 @@ sub start_stack_resolve {
 
           my (@resolved_chunks) = $f->get;
           foreach my $chunk (@resolved_chunks) {
+            my $inode = ($resolved_fh->stat)[1];
+            say $inode;
             $resolved_fh->print($chunk);
           }
 
@@ -1514,7 +1518,11 @@ sub start_stack_resolve {
         #
         if ($eof) {
           say "MAX BUFFER PULLED FROM FILE: $max_buf_pulled";
-          $resolved_fh->close;
+          # TODO: In the Stream context, should we use an on_eof or similar?
+          # Don't close the file here, as it'll happen before we get to write
+          # the file contents above asynchronously.  Let the program exit close
+          # it for us.
+          #$resolved_fh->close;
           # Shut down worker processes/threads
           $resolver_func->stop;
           # NOTE: Added once we moved to IO::Async::Function
