@@ -1445,7 +1445,6 @@ sub start_stack_resolve {
   my ($unresolved_out);
   # only defined if we're resolving a pre-existing unresolved file
   my ($unresolved_file) = $self->unresolved_file;
-  say "UNRESOLVED FILE: $unresolved_file";
   if (defined($unresolved_file)) {
     $unresolved_out = $unresolved_file;
   } else {
