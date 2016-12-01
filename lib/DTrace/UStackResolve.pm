@@ -1508,9 +1508,9 @@ sub start_stack_resolve {
 
         }
 
-        # 
+        #
         # For an unresolved file, we'll just quit when we hit EOF, as it's not
-        # goign to grow any larger or change in any way.
+        # going to grow any larger or change in any way.
         #
         if ($eof) {
           say "MAX BUFFER PULLED FROM FILE: $max_buf_pulled";
