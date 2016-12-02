@@ -1,6 +1,8 @@
 Revision history for {{$dist->name}}
 
 {{$NEXT}}
+
+0.024     2016-12-02 10:25:29-05:00 America/New_York
 - print walltimestamps in nanos too
 - rename/refactor type attribute to dtrace_type to be more specific
 - add unresolved_file attribute
