@@ -1480,55 +1480,33 @@ sub start_stack_resolve {
   #       debugging in the case where a stack resolution fails.
   my ($filestream);
   if (defined($unresolved_file)) {
-    $filestream = IO::Async::Stream->new(
-      read_handle => $dtrace_unresolved_fh,
-      read_len    => 1024 * 1024,  # 1 MB rather than 8 KB max reads
-      #read_all    => 1,
 
-      on_read => sub {
-        my ( $self, $buffref, $eof ) = @_;
+    my ($buf,$c);
 
-        while ( $$buffref =~ s/(.+\n)//smx ) {
-          $max_buf_pulled = (length($1) > $max_buf_pulled) ?
-                             length($1)                    :
-                             $max_buf_pulled;
-          my (@chunks);
-          my $c = $1;
-          @chunks = $c =~ m{ ( (?: ^ [^\n]+? \n|^\n) {1,500} ) }gsmx;
+    while ($dtrace_unresolved_fh->read($buf, 1024*1024)) {
+      $c .= $buf;
 
-          my $f = fmap {
-            my ($chunk) = @_;
-            $resolver_func->call( args => [ $chunk ] );
-          } foreach => \@chunks,
-            concurrent => 8;
+      while ( $c =~ s/(.+\n)//smx ) {
+        my (@chunks);
+        my $data = $1;
+        @chunks = $data =~ m{ ( (?: ^ [^\n]+? \n|^\n) {1,500} ) }gsmx;
+        my $f = fmap {
+          my ($chunk) = @_;
+          $resolver_func->call( args => [ $chunk ] );
+        } foreach => \@chunks,
+          concurrent => 8;
 
-          my (@resolved_chunks) = $f->get;
-          foreach my $chunk (@resolved_chunks) {
-            $resolved_fh->print($chunk);
-          }
-
+        my (@resolved_chunks) = $f->get;
+        foreach my $chunk (@resolved_chunks) {
+          $resolved_fh->print($chunk);
         }
-
-        #
-        # For an unresolved file, we'll just quit when we hit EOF, as it's not
-        # going to grow any larger or change in any way.
-        #
-        if ($eof) {
-          say "MAX BUFFER PULLED FROM FILE: $max_buf_pulled";
-          # TODO: In the Stream context, should we use an on_eof or similar?
-          # Don't close the file here, as it'll happen before we get to write
-          # the file contents above asynchronously.  Let the program exit close
-          # it for us.
-          #$resolved_fh->close;
-          # Shut down worker processes/threads
-          $resolver_func->stop;
-          # NOTE: Added once we moved to IO::Async::Function
-          $loop->stop;
-        }
-
-        return 0;
-      },
-    );
+      }
+    }
+    $resolved_fh->close;
+    # Shut down worker processes/threads
+    $resolver_func->stop;
+    # TODO: This isn't very elegant - do it right.
+    exit(0);
 
   } else {
     $filestream = IO::Async::FileStream->new(
