@@ -1,6 +1,10 @@
 Revision history for {{$dist->name}}
 
 {{$NEXT}}
+- print walltimestamps in nanos too
+- rename/refactor type attribute to dtrace_type to be more specific
+- add unresolved_file attribute
+- Add ability to perform standalone unresolved_file resolutions
 
 0.023     2016-11-30 11:24:18-05:00 America/New_York
 - Add flag to allow disabling the direct lookup cache optimization
