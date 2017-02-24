@@ -57,9 +57,6 @@ our %dtrace_types = (
   "wakeup_chain"    => "wakeup_chain.d",
 );
 
-# NOTE: For use by IO::Async::Function resolver workers
-my ($worker_symtab_trees_href, $worker_direct_symbol_cache, $no_annotations,
-    $do_direct_lookups, $lookup_type, $obj, $debug_fh);
 
 #
 # TODO: This module assumes use of a Perl with 64-bit ints.  Check for this, or
@@ -1480,33 +1477,53 @@ sub start_stack_resolve {
   #       debugging in the case where a stack resolution fails.
   my ($filestream);
   if (defined($unresolved_file)) {
+    $filestream = IO::Async::Stream->new(
+      read_handle => $dtrace_unresolved_fh,
+      read_len    => 1024 * 1024,  # 1 MB rather than 8 KB max reads
+      read_all    => 1,
 
-    my ($buf,$c);
+      on_read => sub {
+        my ( $self, $buffref, $eof ) = @_;
 
-    while ($dtrace_unresolved_fh->read($buf, 1024*1024)) {
-      $c .= $buf;
+        say "buffref is " . length($$buffref) . " bytes long";
 
-      while ( $c =~ s/(.+\n)//smx ) {
-        my (@chunks);
-        my $data = $1;
-        @chunks = $data =~ m{ ( (?: ^ [^\n]+? \n|^\n) {1,500} ) }gsmx;
-        my $f = fmap {
-          my ($chunk) = @_;
-          $resolver_func->call( args => [ $chunk ] );
-        } foreach => \@chunks,
-          concurrent => 8;
+        return 0 if (length($$buffref) == 0);
 
-        my (@resolved_chunks) = $f->get;
-        foreach my $chunk (@resolved_chunks) {
-          $resolved_fh->print($chunk);
+        while ( $$buffref =~ s/(.+\n)//smx ) {
+          my (@chunks);
+          my $c = $1;
+          @chunks = $c =~ m{ ( (?: ^ [^\n]+? \n|^\n) {1,500} ) }gsmx;
+
+          my $f = fmap {
+            my ($chunk) = @_;
+            $resolver_func->call( args => [ $chunk ] );
+          } foreach => \@chunks,
+            concurrent => 8;
+
+          my (@resolved_chunks) = $f->get;
+          say "RESOLVED " . scalar(@resolved_chunks) . " CHUNKS";
+          foreach my $chunk (@resolved_chunks) {
+            $resolved_fh->print($chunk);
+          }
+
         }
-      }
-    }
-    $resolved_fh->close;
-    # Shut down worker processes/threads
-    $resolver_func->stop;
-    # TODO: This isn't very elegant - do it right.
-    exit(0);
+
+        # For a FileStream, $eof will be set every time we reach the end of the
+        # file, but we'll continue to watch for changes, UNLESS we know the DTrace
+        # script that's producing output into the UNRESOLVED file has exited, in
+        # which case we know we're *really* done.
+        if ($eof) {
+          say "FINISHED READING UNRESOLVED FILE";
+          $resolved_fh->close;
+          # Shut down worker processes/threads
+          #$resolver_func->stop;
+          # NOTE: Added once we moved to IO::Async::Function
+          #$loop->stop;
+        }
+
+        return 0;
+      },
+    );
 
   } else {
     $filestream = IO::Async::FileStream->new(
@@ -1751,6 +1768,16 @@ sub _dyn_symbol_tuples {
   return $function_tuples;
 }
 
+#
+# NOTE: We create a block here to enclose the _init_cache() and _resolver
+#       subroutines, so that we can have "global" variables that they can
+#       share amongst each other in the worker processes.
+#
+{
+  # NOTE: For use by IO::Async::Function resolver workers
+  my ($worker_symtab_trees_href, $worker_direct_symbol_cache, $no_annotations,
+      $do_direct_lookups, $lookup_type, $obj, $debug_fh);
+
 =method _init_cache
 
 Initialize the following caches:
@@ -1764,79 +1791,84 @@ have to be looked up in the Red Black Tree as often.
 
 =cut
 
-sub _init_cache {
-  # $obj is a closure for the top level __PACKAGE__ object instance that was
-  # passed in from start_stack_resolve
-  my ($output_dir) = $obj->output_dir;
-  # These are globals...
-  # Determine if annotations will be printed for non-resolvable symbols
-  $no_annotations    = $obj->no_annotations;
-  # ... and whether direct lookups are enabled
-  $do_direct_lookups = $obj->do_direct_lookups;
-  # ... and what the lookup type is
-  $lookup_type       = $obj->lookup_type;
+  sub _init_cache {
+    # $obj is a closure for the top level __PACKAGE__ object instance that was
+    # passed in from start_stack_resolve
+    my ($output_dir) = $obj->output_dir;
+    say "OUTPUT_DIR: $output_dir";
+    # These are globals...
+    # Determine if annotations will be printed for non-resolvable symbols
+    $no_annotations    = $obj->no_annotations;
+    # ... and whether direct lookups are enabled
+    $do_direct_lookups = $obj->do_direct_lookups;
+    # ... and what the lookup type is
+    $lookup_type       = $obj->lookup_type;
+    say "LOOKUP TYPE: $lookup_type";
 
-  if ($lookup_type eq "BinarySearch") {
-    my ($symbol_table_cache) =
-      CHI->new(
-                driver       => 'BerkeleyDB',
-                cache_size   => '512m',
-                root_dir     => File::Spec->catfile( $output_dir,
-                                                     'symbol_tables' ),
-                namespace    => 'symbol_tables',
-                global       => 0,
-                on_get_error => 'warn',
-                on_set_error => 'warn',
-                l1_cache     => { driver   => 'RawMemory',
-                                  global   => 0,
-                                  # This is in terms of items, not bytes!
-                                  max_size => 64*1024,
-                                }
-               );
+    if ($lookup_type eq "BinarySearch") {
+      my ($symbol_table_cache) =
+        CHI->new(
+                  driver       => 'BerkeleyDB',
+                  cache_size   => '512m',
+                  root_dir     => File::Spec->catfile( $output_dir,
+                                                       'symbol_tables' ),
+                  namespace    => 'symbol_tables',
+                  global       => 0,
+                  on_get_error => 'warn',
+                  on_set_error => 'warn',
+                  l1_cache     => { driver   => 'RawMemory',
+                                    global   => 0,
+                                    # This is in terms of items, not bytes!
+                                    max_size => 64*1024,
+                                  }
+                 );
 
-    my $symtab_keys_aref = [ $symbol_table_cache->get_keys ];
-    # The symbol table cache contains only absolute paths - create basenames
-    # to point at the same data as the associated absolute paths, and only do
-    # so in our href, so it won't be stored in the cache and have to be
-    # cleaned up later.
-    $worker_symtab_trees_href =
-      $symbol_table_cache->get_multi_hashref($symtab_keys_aref);
-    foreach my $abspath (@$symtab_keys_aref) {
-      $worker_symtab_trees_href->{basename($abspath)} =
-        $worker_symtab_trees_href->{$abspath};
+      my $symtab_keys_aref = [ $symbol_table_cache->get_keys ];
+      # The symbol table cache contains only absolute paths - create basenames
+      # to point at the same data as the associated absolute paths, and only do
+      # so in our href, so it won't be stored in the cache and have to be
+      # cleaned up later.
+      $worker_symtab_trees_href =
+        $symbol_table_cache->get_multi_hashref($symtab_keys_aref);
+      foreach my $abspath (@$symtab_keys_aref) {
+        $worker_symtab_trees_href->{basename($abspath)} =
+          $worker_symtab_trees_href->{$abspath};
+      }
+    } elsif ($lookup_type eq "RBTree") {
+      say "OPENING $output_dir/symbol_tables as RB_cache";
+      my ($RB_cache) =
+        CHI->new(
+          driver       => 'BerkeleyDB',
+          # No size specified
+          # cache_size   => '8m',
+          root_dir     => File::Spec->catfile( $output_dir, 'symbol_tables' ),
+          namespace    => 'RedBlack_tree_symbol',
+          global       => 0,
+          on_get_error => 'warn',
+          on_set_error => 'warn',
+          l1_cache     => { driver   => 'RawMemory',
+                            global   => 0,
+                            # This is in terms of items, not bytes!
+                            max_size => 128*1024,
+                          }
+        );
+
+      my $RB_keys_aref = [ $RB_cache->get_keys ];
+      say "RB_keys_aref:";
+      say Dumper( $RB_keys_aref );
+      $worker_symtab_trees_href =
+        $RB_cache->get_multi_hashref($RB_keys_aref);
     }
-  } elsif ($lookup_type eq "RBTree") {
-    my ($RB_cache) =
+
+    $worker_direct_symbol_cache =
       CHI->new(
-        driver       => 'BerkeleyDB',
-        # No size specified
-        # cache_size   => '8m',
-        root_dir     => File::Spec->catfile( $output_dir, 'symbol_tables' ),
-        namespace    => 'RedBlack_tree_symbol',
+        driver       => 'RawMemory',
+        # This is in terms of item count, not bytes!
+        max_size     => 8*1024,
         global       => 0,
-        on_get_error => 'warn',
-        on_set_error => 'warn',
-        l1_cache     => { driver   => 'RawMemory',
-                          global   => 0,
-                          # This is in terms of items, not bytes!
-                          max_size => 128*1024,
-                        }
       );
-
-    my $RB_keys_aref = [ $RB_cache->get_keys ];
-    $worker_symtab_trees_href =
-      $RB_cache->get_multi_hashref($RB_keys_aref);
+    $debug_fh = IO::File->new("/tmp/debug.out", ">>");
   }
-
-  $worker_direct_symbol_cache =
-    CHI->new(
-      driver       => 'RawMemory',
-      # This is in terms of item count, not bytes!
-      max_size     => 8*1024,
-      global       => 0,
-    );
-  $debug_fh = IO::File->new("/tmp/debug.out", ">");
-}
 
 =method _resolver( $chunk_of_unresolved_lines )
 
@@ -1851,37 +1883,39 @@ unchanged.
 =cut
 
 
-sub _resolver {
-  my ($chunk) = @_;
+  sub _resolver {
+    my ($chunk) = @_;
 
-  my ($resolved_chunk,$cached_result);
-  my $unresolved_re =
-    qr/^(?<keyfile>[^:]+):0x(?<offset>[\da-fA-F]+)/;
+    my ($resolved_chunk,$cached_result);
+    my $unresolved_re =
+      qr/^(?<keyfile>[^:]+):0x(?<offset>[\da-fA-F]+)/;
 
-  while ( $chunk =~ s/^(.*)\n// ) {
-    my $line = $1;
-    if ($line =~ m/^(?<keyfile>[^:]+):0x(?<offset>[\da-fA-F]+)$/) {
-      # Return direct lookup if enabled and available
-      if ($do_direct_lookups and
-          ($cached_result = $worker_direct_symbol_cache->get($line))) {
-        $line = $cached_result;
-      } else {
-        # Otherwise look up the symbol via the specified manner
-        my ($keyfile, $offset) = ( $+{keyfile},
-                                   Math::BigInt->from_hex( $+{offset} )->numify
-                                 );
-        if ($lookup_type eq "RBTree") {
-          $line = _lookup_RB($line, $keyfile, $offset);
+    while ( $chunk =~ s/^(.*)\n// ) {
+      my $line = $1;
+      if ($line =~ m/^(?<keyfile>[^:]+):0x(?<offset>[\da-fA-F]+)$/) {
+        # Return direct lookup if enabled and available
+        if ($do_direct_lookups and
+            ($cached_result = $worker_direct_symbol_cache->get($line))) {
+          $line = $cached_result;
         } else {
-          $line = _lookup_BinarySearch($line, $keyfile, $offset);
+          # Otherwise look up the symbol via the specified manner
+          my ($keyfile, $offset) = ( $+{keyfile},
+                                     Math::BigInt->from_hex( $+{offset} )->numify
+                                   );
+          if ($lookup_type eq "RBTree") {
+            $line = _lookup_RB($line, $keyfile, $offset);
+          } else {
+            $line = _lookup_BinarySearch($line, $keyfile, $offset);
+          }
         }
       }
+      $resolved_chunk .= "$line\n";
     }
-    $resolved_chunk .= "$line\n";
+
+    return $resolved_chunk;
   }
 
-  return $resolved_chunk;
-}
+} # Close over block that keeps local variables for _init_cache and _resolver
 
 sub _lookup_RB {
   my ($line,$keyfile,$offset) = @_;
