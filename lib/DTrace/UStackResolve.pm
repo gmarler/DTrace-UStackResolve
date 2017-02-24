@@ -1917,90 +1917,92 @@ unchanged.
     return $resolved_chunk;
   }
 
-} # Close over block that keeps local variables for _init_cache and _resolver
 
-sub _lookup_RB {
-  my ($line,$keyfile,$offset) = @_;
+  sub _lookup_RB {
+    my ($line,$keyfile,$offset) = @_;
 
-  # Look up the symbol in the RB Tree
-  if ( defined( my $search_tree = $worker_symtab_trees_href->{$keyfile} ) ) {
-    my $symtab_entry = $search_tree->lookup( $offset, LULTEQ );
-    if (defined($symtab_entry)) {
-      if (($offset >= $symtab_entry->[$FUNCTION_START_ADDRESS] ) and
-          ($offset <= ($symtab_entry->[$FUNCTION_START_ADDRESS] +
-                       $symtab_entry->[$FUNCTION_SIZE]) ) ) {
+    # Look up the symbol in the RB Tree
+    if ( defined( my $search_tree = $worker_symtab_trees_href->{$keyfile} ) ) {
+      my $symtab_entry = $search_tree->lookup( $offset, LULTEQ );
+      if (defined($symtab_entry)) {
+        if (($offset >= $symtab_entry->[$FUNCTION_START_ADDRESS] ) and
+            ($offset <= ($symtab_entry->[$FUNCTION_START_ADDRESS] +
+                         $symtab_entry->[$FUNCTION_SIZE]) ) ) {
+          my $resolved =
+            sprintf("%s+0x%x",
+                    $symtab_entry->[$FUNCTION_NAME],
+                    $offset - $symtab_entry->[$FUNCTION_START_ADDRESS]);
+          # If we got here, we have something to store in the direct symbol
+          # lookup cache
+          # TODO: Predicate this on $do_direct_lookups
+          if ($do_direct_lookups) {
+            $worker_direct_symbol_cache->set($line,$resolved);
+          }
+          $line =~ s/^(?<keyfile>[^:]+):0x(?<offset>[\da-fA-F]+)$/${resolved}/;
+        } else {
+          if (not $no_annotations) {
+            $line .= " [SYMBOL TABLE LOOKUP FAILED - POTENTIAL MATCH FAILED]";
+          }
+        }
+      } else {
+        if (not $no_annotations) {
+          $line .= " [SYMBOL TABLE LOOKUP FAILED - NOT EVEN A POTENTIAL MATCH]";
+        }
+        #say "FAILED TO LOOKUP ENTRY FOR: $keyfile";
+        #confess "WHAT THE HECK HAPPENED???";
+      }
+    } else {
+      if (not $no_annotations) {
+        $line .= " [NO SYMBOL TABLE FOR $keyfile]";
+      }
+    }
+
+    return $line;
+  }
+
+  sub _lookup_BinarySearch {
+    my ($line,$keyfile,$offset) = @_;
+
+    # Look up the symbol in the proper symtab sorted array via Binary Search
+    if ( defined( my $search_tree = $worker_symtab_trees_href->{$keyfile} ) ) {
+      my $symtab_entry_idx =
+        binsearch { ( ($a >=  $b->[$FUNCTION_START_ADDRESS]) and
+                      ($a <= ($b->[$FUNCTION_START_ADDRESS] +
+                              $b->[$FUNCTION_SIZE]) ) )
+                    ?  0 : ($a < $b->[$FUNCTION_START_ADDRESS])
+                    ? -1 : 1;
+                  } $offset, @$search_tree;
+
+      if (defined($symtab_entry_idx)) {
+        my $symtab_entry = $search_tree->[$symtab_entry_idx];
         my $resolved =
           sprintf("%s+0x%x",
                   $symtab_entry->[$FUNCTION_NAME],
                   $offset - $symtab_entry->[$FUNCTION_START_ADDRESS]);
         # If we got here, we have something to store in the direct symbol
         # lookup cache
-        # TODO: Predicate this on $do_direct_lookups
         if ($do_direct_lookups) {
           $worker_direct_symbol_cache->set($line,$resolved);
         }
         $line =~ s/^(?<keyfile>[^:]+):0x(?<offset>[\da-fA-F]+)$/${resolved}/;
       } else {
         if (not $no_annotations) {
-          $line .= " [SYMBOL TABLE LOOKUP FAILED - POTENTIAL MATCH FAILED]";
+          $line .= " [SYMBOL TABLE LOOKUP FAILED - NO MATCH]";
         }
+        #say "FAILED TO LOOKUP ENTRY FOR: $keyfile";
+        #confess "WHAT THE HECK HAPPENED???";
       }
     } else {
       if (not $no_annotations) {
-        $line .= " [SYMBOL TABLE LOOKUP FAILED - NOT EVEN A POTENTIAL MATCH]";
+        $line .= " [NO SYMBOL TABLE FOR $keyfile]";
       }
-      #say "FAILED TO LOOKUP ENTRY FOR: $keyfile";
-      #confess "WHAT THE HECK HAPPENED???";
     }
-  } else {
-    if (not $no_annotations) {
-      $line .= " [NO SYMBOL TABLE FOR $keyfile]";
-    }
+
+    return $line;
   }
 
-  return $line;
-}
-
-sub _lookup_BinarySearch {
-  my ($line,$keyfile,$offset) = @_;
-
-  # Look up the symbol in the proper symtab sorted array via Binary Search
-  if ( defined( my $search_tree = $worker_symtab_trees_href->{$keyfile} ) ) {
-    my $symtab_entry_idx =
-      binsearch { ( ($a >=  $b->[$FUNCTION_START_ADDRESS]) and
-                    ($a <= ($b->[$FUNCTION_START_ADDRESS] +
-                            $b->[$FUNCTION_SIZE]) ) )
-                  ?  0 : ($a < $b->[$FUNCTION_START_ADDRESS])
-                  ? -1 : 1;
-                } $offset, @$search_tree;
-
-    if (defined($symtab_entry_idx)) {
-      my $symtab_entry = $search_tree->[$symtab_entry_idx];
-      my $resolved =
-        sprintf("%s+0x%x",
-                $symtab_entry->[$FUNCTION_NAME],
-                $offset - $symtab_entry->[$FUNCTION_START_ADDRESS]);
-      # If we got here, we have something to store in the direct symbol
-      # lookup cache
-      if ($do_direct_lookups) {
-        $worker_direct_symbol_cache->set($line,$resolved);
-      }
-      $line =~ s/^(?<keyfile>[^:]+):0x(?<offset>[\da-fA-F]+)$/${resolved}/;
-    } else {
-      if (not $no_annotations) {
-        $line .= " [SYMBOL TABLE LOOKUP FAILED - NO MATCH]";
-      }
-      #say "FAILED TO LOOKUP ENTRY FOR: $keyfile";
-      #confess "WHAT THE HECK HAPPENED???";
-    }
-  } else {
-    if (not $no_annotations) {
-      $line .= " [NO SYMBOL TABLE FOR $keyfile]";
-    }
-  }
-
-  return $line;
-}
+} # Close over block that keeps local variables for _init_cache and _resolver
+  # and the lookup functions they call
 
 =head1 FUNCTIONS
 
