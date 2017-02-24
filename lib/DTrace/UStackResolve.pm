@@ -39,6 +39,8 @@ use Config;
 use Readonly;
 use Data::Dumper;
 
+# NOTE: Used to pass $self to each IO::Async::Function resolver worker
+my ($obj);
 
 #
 # CONSTANTS
@@ -1776,7 +1778,7 @@ sub _dyn_symbol_tuples {
 {
   # NOTE: For use by IO::Async::Function resolver workers
   my ($worker_symtab_trees_href, $worker_direct_symbol_cache, $no_annotations,
-      $do_direct_lookups, $lookup_type, $obj, $debug_fh);
+      $do_direct_lookups, $lookup_type, $debug_fh);
 
 =method _init_cache
 
