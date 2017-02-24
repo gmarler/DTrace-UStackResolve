@@ -39,9 +39,6 @@ use Config;
 use Readonly;
 use Data::Dumper;
 
-# NOTE: Used to pass $self to each IO::Async::Function resolver worker
-my ($obj);
-
 #
 # CONSTANTS
 #
@@ -873,11 +870,6 @@ override BUILDARGS => sub {
 sub BUILD {
   my ($self) = shift;
 
-  # make $obj available for output_dir contents in _init_cache initialization of
-  # IO::Async::Function for all worker threads
-  # TODO: This may no longer be needed
-  $obj = $self;
-
   # If the constructor was passed a valid 'unresolved_file', then we won't be
   # running DTrace, and we're extremely unlikely be generating/caching symbol
   # tables, instead preferring to use ones that have already been generated, and
@@ -1440,7 +1432,6 @@ STDOUT.
 sub start_stack_resolve {
   my ($self) = shift;
 
-  $obj = $self; # for use in IO::Async::FileStream callback below
   my ($unresolved_out);
   # only defined if we're resolving a pre-existing unresolved file
   my ($unresolved_file) = $self->unresolved_file;
@@ -1455,7 +1446,8 @@ sub start_stack_resolve {
   # This is not yet defined - we're doing it now...
   my ($resolver_func)  =
     IO::Async::Function->new(
-      init_code   => \&_init_cache,
+      # Do this so we can get $self inside _init_cache
+      init_code   => sub { $self->_init_cache },
       code        => \&_resolver,
       min_workers => 8,
       max_workers => 8,
@@ -1528,6 +1520,8 @@ sub start_stack_resolve {
     );
 
   } else {
+    # So we can reference the object inside the IO::Async::FileStream handler
+    my ($outer_obj) = $self;
     $filestream = IO::Async::FileStream->new(
       read_handle => $dtrace_unresolved_fh,
       read_len    => 1024 * 1024,  # 1 MB rather than 8 KB max reads
@@ -1563,7 +1557,7 @@ sub start_stack_resolve {
         # script that's producing output into the UNRESOLVED file has exited, in
         # which case we know we're *really* done.
         if ($eof) {
-          if ($obj->dtrace_has_exited) {
+          if ($outer_obj->dtrace_has_exited) {
             say "MAX BUFFER PULLED FROM FILE: $max_buf_pulled";
             say "DTrace Script has exited, and read everything it produced - EXITING";
             $resolved_fh->close;
@@ -1794,18 +1788,16 @@ have to be looked up in the Red Black Tree as often.
 =cut
 
   sub _init_cache {
-    # $obj is a closure for the top level __PACKAGE__ object instance that was
-    # passed in from start_stack_resolve
-    my ($output_dir) = $obj->output_dir;
-    say "OUTPUT_DIR: $output_dir";
-    # These are globals...
+    my ($self) = shift;
+    my ($output_dir) = $self->output_dir;
+    say "[$$]: OUTPUT_DIR: $output_dir";
     # Determine if annotations will be printed for non-resolvable symbols
-    $no_annotations    = $obj->no_annotations;
+    $no_annotations    = $self->no_annotations;
     # ... and whether direct lookups are enabled
-    $do_direct_lookups = $obj->do_direct_lookups;
+    $do_direct_lookups = $self->do_direct_lookups;
     # ... and what the lookup type is
-    $lookup_type       = $obj->lookup_type;
-    say "LOOKUP TYPE: $lookup_type";
+    $lookup_type       = $self->lookup_type;
+    say "[$$]: LOOKUP TYPE: $lookup_type";
 
     if ($lookup_type eq "BinarySearch") {
       my ($symbol_table_cache) =
@@ -1837,7 +1829,7 @@ have to be looked up in the Red Black Tree as often.
           $worker_symtab_trees_href->{$abspath};
       }
     } elsif ($lookup_type eq "RBTree") {
-      say "OPENING $output_dir/symbol_tables as RB_cache";
+      say "[$$]: OPENING $output_dir/symbol_tables as RB_cache";
       my ($RB_cache) =
         CHI->new(
           driver       => 'BerkeleyDB',
@@ -1856,7 +1848,7 @@ have to be looked up in the Red Black Tree as often.
         );
 
       my $RB_keys_aref = [ $RB_cache->get_keys ];
-      say "RB_keys_aref:";
+      say "[$$]: RB_keys_aref:";
       say Dumper( $RB_keys_aref );
       $worker_symtab_trees_href =
         $RB_cache->get_multi_hashref($RB_keys_aref);
