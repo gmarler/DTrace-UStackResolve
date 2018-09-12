@@ -18,7 +18,7 @@ sched:::off-cpu
 sched:::on-cpu
 / self->bedtime /
 {
-  @[stack(),ustack()] = sum(timestamp - self->bedtime);
+  @[pid,tid,stack(),ustack()] = sum(timestamp - self->bedtime);
   self->bedtime = 0;
 }
 
@@ -26,7 +26,7 @@ tick-1sec
 {
   printf("\n%Y [%u]\n",walltimestamp,walltimestamp);
 
-  printa("%k %k %@12u\n",@);
+  printa("PID: %5d TID: %5d  %k %k %@12u\n",@);
 
   trunc(@);
 }
